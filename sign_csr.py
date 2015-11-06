@@ -181,17 +181,18 @@ def sign_csr(pubkey, csr, email=None):
 
     # Step 5: Ask the user to sign the registration and requests
     sys.stderr.write("""\
-STEP 2: You need to sign some files (replace 'user.key' with your user private key).
+STEP 2: You need to sign some files (replace ./user.key with the path to your user account private key).
 
-openssl dgst -sha256 -sign user.key -out {} {}
+export PRIVATE_USER_KEY=./user.key
+openssl dgst -sha256 -sign $PRIVATE_USER_KEY -out {} {}
 {}
 {}
-openssl dgst -sha256 -sign user.key -out {} {}
+openssl dgst -sha256 -sign $PRIVATE_USER_KEY -out {} {}
 
 """.format(
     reg_file_sig_name, reg_file_name,
-    "\n".join("openssl dgst -sha256 -sign user.key -out {} {}".format(i['sig_name'], i['file_name']) for i in ids),
-    "\n".join("openssl dgst -sha256 -sign user.key -out {} {}".format(i['sig_name'], i['file_name']) for i in tests),
+    "\n".join("openssl dgst -sha256 -sign $PRIVATE_USER_KEY -out {} {}".format(i['sig_name'], i['file_name']) for i in ids),
+    "\n".join("openssl dgst -sha256 -sign $PRIVATE_USER_KEY -out {} {}".format(i['sig_name'], i['file_name']) for i in tests),
     csr_file_sig_name, csr_file_name))
 
     stdout = sys.stdout
@@ -280,12 +281,13 @@ openssl dgst -sha256 -sign user.key -out {} {}
 
     # Step 9: Ask the user to sign the challenge responses
     sys.stderr.write("""\
-STEP 3: You need to sign some more files (replace 'user.key' with your user private key).
+STEP 3: You need to sign some more files (replace ./user.key with the path to your user account private key).
 
+export PRIVATE_USER_KEY=./user.key
 {}
 
 """.format(
-    "\n".join("openssl dgst -sha256 -sign user.key -out {} {}".format(
+    "\n".join("openssl dgst -sha256 -sign $PRIVATE_USER_KEY -out {} {}".format(
         i['sig_name'], i['file_name']) for i in responses)))
 
     stdout = sys.stdout
@@ -411,19 +413,19 @@ Prerequisites:
 * openssl
 * python
 
-Example: Generate an account keypair, a domain key and csr, and have the domain csr signed.
+Example: Generate an user account keypair, a domain key and csr, and have the domain csr signed.
 --------------
 $ openssl genrsa 4096 > user.key
-$ openssl rsa -in user.key -pubout > user.pub
+$ openssl rsa -in user.key -pubout > user.key.pub
 $ openssl genrsa 4096 > domain.key
 $ openssl req -new -sha256 -key domain.key -subj "/CN=example.com" > domain.csr
 $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
 --------------
 
 """)
-    parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
+    parser.add_argument("-p", "--public-key", required=True, help="path to your user account user.key.pub key")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
-    parser.add_argument("csr_path", help="path to your certificate signing request")
+    parser.add_argument("csr_path", help="path to your domain certificate signing request")
 
     args = parser.parse_args()
     signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email)

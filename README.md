@@ -57,7 +57,7 @@ step.
 
 ```sh
 openssl genrsa 4096 > user.key
-openssl rsa -in user.key -pubout > user.pub
+openssl rsa -in user.key -pubout > user.key.pub
 ```
 
 Second, you need to generate the domain key and a certificate request.
@@ -79,7 +79,7 @@ Third, you run the script using python and passing in the path to your user
 account public key and the domain CSR. The paths can be relative or absolute.
 
 ```sh
-python sign_csr.py --public-key user.pub domain.csr > signed.crt
+python sign_csr.py --public-key user.key.pub domain.csr > signed.crt
 ```
 
 When you run the script, it will ask you do do some manual commands. It has to
@@ -119,10 +119,10 @@ Prerequisites:
 Example: Generate an account keypair, a domain key and csr, and have the domain csr signed.
 --------------
 $ openssl genrsa 4096 > user.key
-$ openssl rsa -in user.key -pubout > user.pub
+$ openssl rsa -in user.key -pubout > user.key.pub
 $ openssl genrsa 4096 > domain.key
 $ openssl req -new -sha256 -key domain.key -subj "/CN=example.com" > domain.csr
-$ python sign_csr.py --public-key user.pub domain.csr > signed.crt
+$ python sign_csr.py --public-key user.key.pub domain.csr > signed.crt
 --------------
 
 positional arguments:
@@ -131,7 +131,7 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -p PUBLIC_KEY, --public-key PUBLIC_KEY
-                        path to your account public key
+                        path to your user account public key
   -e EMAIL, --email EMAIL
                         contact email, default is webmaster@<shortest_domain>
 user@hostname:~$
@@ -146,7 +146,7 @@ Generating RSA private key, 4096 bit long modulus
 .............................................................................................................................................................................++
 ....................................................++
 e is 65537 (0x10001)
-user@hostname:~$ openssl rsa -in user.key -pubout > user.pub
+user@hostname:~$ openssl rsa -in user.key -pubout > user.key.pub
 writing RSA key
 user@hostname:~$ openssl genrsa 4096 > domain.key
 Generating RSA private key, 4096 bit long modulus
@@ -154,7 +154,7 @@ Generating RSA private key, 4096 bit long modulus
 ...........................................++
 e is 65537 (0x10001)
 user@hostname:~$ openssl req -new -sha256 -key domain.key -subj "/CN=letsencrypt.daylightpirates.org" > domain.csr
-user@hostname:~$ python sign_csr.py --public-key user.pub domain.csr > signed.crt
+user@hostname:~$ python sign_csr.py --public-key user.key.pub domain.csr > signed.crt
 Reading pubkey file...
 Found public key!
 Reading csr file...
