@@ -38,7 +38,7 @@ def host_token(domain, token, response_payload, user_step_number, file_based, s3
         bucket_path = 's3://{}/.well-known/acme-challenge/{}'.format(s3_bucket, token)
 
         sys.stderr.write("Hosting challenge token on AWS...\n")
-        proc = subprocess.Popen(["aws", "s3", "cp", payload_file_name, bucket_path, "--content-type", 'application/jose+json'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(["aws", "s3", "cp", payload_file_name, bucket_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
         if proc.returncode != 0:
             raise IOError("Error signing {}".format(pair[1]))
