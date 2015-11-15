@@ -2,7 +2,32 @@
 import argparse, subprocess, json, os, urllib2, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
-def sign_csr(pubkey, csr, email=None):
+
+def get_signatures(needed_signatures, user_step_number, private_key=None):
+    if private_key is None:
+        sys.stderr.write("""\
+STEP {}: You need to sign some files (replace 'user.key' with your user private key).
+
+{}
+
+""".format(
+            user_step_number,
+            "\n".join("openssl dgst -sha256 -sign user.key -out {} {}".format(i[0], i[1]) for i in needed_signatures)))
+
+        temp_stdout = sys.stdout
+        sys.stdout = sys.stderr
+        raw_input("Press Enter when you've run the above commands in a new terminal window...")
+        sys.stdout = temp_stdout
+    else:
+        for pair in needed_signatures:
+            sys.stderr.write("Signing {}...\n".format(pair[1]))
+            proc = subprocess.Popen(["openssl", "dgst", "-sha256", "-sign", private_key, "-out", pair[0], pair[1]],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = proc.communicate()
+            if proc.returncode != 0:
+                raise IOError("Error signing {}".format(pair[1]))
+
+def sign_csr(pubkey, csr, email=None, private_key=None):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -156,22 +181,11 @@ def sign_csr(pubkey, csr, email=None):
     csr_file_sig_name = os.path.basename(csr_file_sig.name)
 
     # Step 5: Ask the user to sign the registration and requests
-    sys.stderr.write("""\
-STEP 2: You need to sign some files (replace 'user.key' with your user private key).
-
-openssl dgst -sha256 -sign user.key -out {} {}
-{}
-openssl dgst -sha256 -sign user.key -out {} {}
-
-""".format(
-    reg_file_sig_name, reg_file_name,
-    "\n".join("openssl dgst -sha256 -sign user.key -out {} {}".format(i['sig_name'], i['file_name']) for i in ids),
-    csr_file_sig_name, csr_file_name))
-
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    raw_input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+    needed_signatures = list()
+    needed_signatures.append((reg_file_sig_name, reg_file_name))
+    needed_signatures.extend([(i['sig_name'], i['file_name']) for i in ids])
+    needed_signatures.append((csr_file_sig_name, csr_file_name))
+    get_signatures(needed_signatures, user_step_number=2, private_key=private_key)
 
     # Step 6: Load the signatures
     reg_file_sig.seek(0)
@@ -266,19 +280,7 @@ openssl dgst -sha256 -sign user.key -out {} {}
         })
 
     # Step 9: Ask the user to sign the challenge responses
-    sys.stderr.write("""\
-STEP 3: You need to sign some more files (replace 'user.key' with your user private key).
-
-{}
-
-""".format(
-    "\n".join("openssl dgst -sha256 -sign user.key -out {} {}".format(
-        i['sig_name'], i['file_name']) for i in tests)))
-
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    raw_input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+    get_signatures([(i['sig_name'], i['file_name']) for i in tests], user_step_number=3, private_key=private_key)
 
     # Step 10: Load the response signatures
     for n, i in enumerate(ids):
@@ -408,6 +410,7 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
 
 """)
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
+    parser.add_argument("-r", "--private-key", default=None, help="path to your account private key (optional)")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
