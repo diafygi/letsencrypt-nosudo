@@ -28,8 +28,21 @@ STEP {}: You need to sign some files (replace 'user.key' with your user private 
                 raise IOError("Error signing {}".format(pair[1]))
 
 
-def host_token(domain, token, response_payload, user_step_number, file_based):
-    if file_based:
+def host_token(domain, token, response_payload, user_step_number, file_based, s3_bucket=None):
+    if s3_bucket is not None:
+        # write payload to file
+        payload_file = tempfile.NamedTemporaryFile(dir=".", prefix="payload_", suffix=".json")
+        payload_file.write(response_payload)
+        payload_file.flush()
+        payload_file_name = os.path.basename(payload_file.name)
+        bucket_path = 's3://{}/.well-known/acme-challenge/{}'.format(s3_bucket, token)
+
+        sys.stderr.write("Hosting challenge token on AWS...\n")
+        proc = subprocess.Popen(["aws", "s3", "cp", payload_file_name, bucket_path, "--content-type", 'application/jose+json'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = proc.communicate()
+        if proc.returncode != 0:
+            raise IOError("Error signing {}".format(pair[1]))
+    elif file_based:
         # write payload to file
         payload_file = tempfile.NamedTemporaryFile(dir=".", prefix="payload_", suffix=".json")
         payload_file.write(response_payload)
@@ -65,7 +78,7 @@ sudo python -c "import BaseHTTPServer; \\
     sys.stdout = stdout
 
 
-def sign_csr(pubkey, csr, email=None, private_key=None, file_based=False):
+def sign_csr(pubkey, csr, email=None, private_key=None, file_based=False, s3_bucket=None):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -74,6 +87,7 @@ def sign_csr(pubkey, csr, email=None, private_key=None, file_based=False):
     :param string email: An optional user account contact email
                          (defaults to webmaster@<shortest_domain>)
     :param string private_key: Optional path to the user account private key
+    :param string s3_bucket: Optional Amazon S3 bucket to upload challenge file(s) to
 
     :returns: Signed Certificate (PEM format)
     :rtype: string
@@ -328,7 +342,7 @@ def sign_csr(pubkey, csr, email=None, private_key=None, file_based=False):
 
     # Step 11: Ask the user to host the token on their server
     for n, i in enumerate(ids):
-        host_token(i['domain'], challenge['token'], responses[n]['data'], n + 4, file_based)
+        host_token(i['domain'], challenge['token'], responses[n]['data'], n + 4, file_based, s3_bucket)
 
         # Step 12: Let the CA know you're ready for the challenge
         sys.stderr.write("Requesting verification for {}...\n".format(i['domain']))
@@ -438,9 +452,10 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("-r", "--private-key", default=None, help="path to your account private key (optional)")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
+    parser.add_argument("-s", "--s3-bucket", default=None, help="the Amazon S3 bucket to upload the challenge file to; this assumes that the bucket serves as the web server for the challenge domain(s)")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, private_key=args.private_key, file_based=args.file_based)
+    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, private_key=args.private_key, file_based=args.file_based, s3_bucket=args.s3_bucket)
     sys.stdout.write(signed_crt)
 
