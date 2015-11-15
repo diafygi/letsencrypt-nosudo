@@ -27,7 +27,45 @@ STEP {}: You need to sign some files (replace 'user.key' with your user private 
             if proc.returncode != 0:
                 raise IOError("Error signing {}".format(pair[1]))
 
-def sign_csr(pubkey, csr, email=None, private_key=None):
+
+def host_token(domain, token, response_payload, user_step_number, file_based):
+    if file_based:
+        # write payload to file
+        payload_file = tempfile.NamedTemporaryFile(dir=".", prefix="payload_", suffix=".json")
+        payload_file.write(response_payload)
+        payload_file.flush()
+        payload_file_name = os.path.basename(payload_file.name)
+        server_path = '.well-known/acme-challenge/' + token
+
+        # tell the user where to put it
+        sys.stderr.write("""\
+STEP {}: You need to place the file {} on the webserver for {} in a file named {}.
+
+""".format(user_step_number, payload_file_name, domain, server_path))
+    else:
+        
+
+        sys.stderr.write("""\
+STEP {}: You need to run this command on {} (don't stop the python command until the next step).
+
+openssl req -new -x509 -keyout server.pem -out server.pem -days 365 -nodes
+sudo python -c "import BaseHTTPServer; \\
+    import ssl; \\
+    h = BaseHTTPServer.BaseHTTPRequestHandler; \\
+    h.do_GET = lambda r: r.send_response(200) or r.end_headers() or r.wfile.write('{}'); \\
+    s = BaseHTTPServer.HTTPServer(('0.0.0.0', 443), h); \\
+    s.socket = ssl.wrap_socket(s.socket, certfile='server.pem', server_side=True); \\
+    s.serve_forever()"
+
+""".format(user_step_number, domain, response_payload.replace('"', '\\"')))
+
+    stdout = sys.stdout
+    sys.stdout = sys.stderr
+    raw_input("Press Enter when you've got the python command running on your server...")
+    sys.stdout = stdout
+
+
+def sign_csr(pubkey, csr, email=None, private_key=None, file_based=False):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -35,6 +73,7 @@ def sign_csr(pubkey, csr, email=None, private_key=None):
     :param string csr: Path to the certificate signing request.
     :param string email: An optional user account contact email
                          (defaults to webmaster@<shortest_domain>)
+    :param string private_key: Optional path to the user account private key
 
     :returns: Signed Certificate (PEM format)
     :rtype: string
@@ -289,21 +328,7 @@ def sign_csr(pubkey, csr, email=None, private_key=None):
 
     # Step 11: Ask the user to host the token on their server
     for n, i in enumerate(ids):
-        sys.stderr.write("""\
-STEP {}: You need to run this command on {} (don't stop the python command until the next step).
-
-sudo python -c "import BaseHTTPServer; \\
-    h = BaseHTTPServer.BaseHTTPRequestHandler; \\
-    h.do_GET = lambda r: r.send_response(200) or r.end_headers() or r.wfile.write('{}'); \\
-    s = BaseHTTPServer.HTTPServer(('0.0.0.0', 80), h); \\
-    s.serve_forever()"
-
-""".format(n+4, i['domain'], responses[n]['data']))
-
-        stdout = sys.stdout
-        sys.stdout = sys.stderr
-        raw_input("Press Enter when you've got the python command running on your server...")
-        sys.stdout = stdout
+        host_token(i['domain'], challenge['token'], responses[n]['data'], n + 4, file_based)
 
         # Step 12: Let the CA know you're ready for the challenge
         sys.stderr.write("Requesting verification for {}...\n".format(i['domain']))
@@ -412,9 +437,10 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
     parser.add_argument("-r", "--private-key", default=None, help="path to your account private key (optional)")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
+    parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email)
+    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, private_key=args.private_key, file_based=args.file_based)
     sys.stdout.write(signed_crt)
 
