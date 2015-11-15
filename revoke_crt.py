@@ -28,11 +28,11 @@ STEP {}: You need to sign some files (replace 'user.key' with your user private 
                 raise IOError("Error signing {}".format(pair[1]))
 
 
-def revoke_csr(pubkey, csr, private_key=None):
+def revoke_crt(pubkey, crt, private_key=None):
     """Use the ACME protocol to revoke an ssl certificate signed by a
     certificate authority.
 
-    :param string csr: Path to the certificate signing request.
+    :param string crt: Path to the signed certificate.
     """
     #CA = "https://acme-staging.api.letsencrypt.org"
     CA = "https://acme-v01.api.letsencrypt.org"
@@ -75,7 +75,7 @@ def revoke_csr(pubkey, csr, private_key=None):
 
     # Step 2: Generate the payload that needs to be signed
     # revokation request
-    proc = subprocess.Popen(["openssl", "x509", "-in", csr, "-outform", "DER"],
+    proc = subprocess.Popen(["openssl", "x509", "-in", crt, "-outform", "DER"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     crt_der, err = proc.communicate()
     crt_der64 = _b64(crt_der)
@@ -87,17 +87,17 @@ def revoke_csr(pubkey, csr, private_key=None):
     crt_protected = copy.deepcopy(header)
     crt_protected.update({"nonce": urllib2.urlopen(nonce_req).headers['Replay-Nonce']})
     crt_protected64 = _b64(json.dumps(crt_protected, sort_keys=True, indent=4))
-    crt_file = tempfile.NamedTemporaryFile(dir=".", prefix="cert_", suffix=".json")
+    crt_file = tempfile.NamedTemporaryFile(dir=".", prefix="revoke_", suffix=".json")
     crt_file.write("{}.{}".format(crt_protected64, crt_b64))
     crt_file.flush()
     crt_file_name = os.path.basename(crt_file.name)
-    crt_file_sig = tempfile.NamedTemporaryFile(dir=".", prefix="cert_", suffix=".sig")
+    crt_file_sig = tempfile.NamedTemporaryFile(dir=".", prefix="revoke_", suffix=".sig")
     crt_file_sig_name = os.path.basename(crt_file_sig.name)
 
     # Step 3: Ask the user to sign the registration and requests
     needed_signatures = list()
     needed_signatures = [(crt_file_sig_name, crt_file_name)]
-    get_signatures(needed_signatures, user_step_number=3, private_key=private_key)
+    get_signatures(needed_signatures, user_step_number=1, private_key=private_key)
 
     # Step 4: Load the signature and send the revokation request
     sys.stderr.write("Requesting revocation...\n")
@@ -143,7 +143,7 @@ Prerequisites:
 
 Example:
 --------------
-$ python revoke_csr.py --public-key user.pub domain.crt
+$ python revoke_crt.py --public-key user.pub domain.crt
 --------------
 
 """)
@@ -152,5 +152,5 @@ $ python revoke_csr.py --public-key user.pub domain.crt
     parser.add_argument("crt_path", help="path to your signed certificate")
 
     args = parser.parse_args()
-    revoke_csr(args.public_key, args.crt_path, private_key=args.private_key)
+    revoke_crt(args.public_key, args.crt_path, private_key=args.private_key)
 
