@@ -1,13 +1,12 @@
 #Let's Encrypt Without Sudo
 
-**WARNING: THE LET'S ENCRYPT CERTIFICATE AUTHORITY IS ONLY IN BETA! YOU MUST
-HAVE A WHITELISTED DOMAIN DURING BETA. GENERAL AVAILABILITY WILL BE SOON!**
+**WARNING: THE LET'S ENCRYPT CERTIFICATE AUTHORITY IS ONLY IN BETA!**
 
 The [Let's Encrypt](https://letsencrypt.org/) initiative is a fantastic program
-that is going to offer **free** https certificates! However, the one catch is
-that you need to use their command program to get a free certificate. You have
-to run it on your your server as root, and it tries to edit your apache/nginx
-config files.
+that offers **free** https certificates! However, the one catch is that you need
+to use their command program to get a free certificate. The default instructions
+all assume that you will run it on your your server as root, and that it will
+edit your apache/nginx config files.
 
 I love the Let's Encrypt devs dearly, but there's no way I'm going to trust
 their script to run on my server as root, be able to edit my server configs, and
