@@ -321,6 +321,13 @@ sudo python -c "import BaseHTTPServer; \\
     s = BaseHTTPServer.HTTPServer(('0.0.0.0', 80), h); \\
     s.serve_forever()"
 
+Alternatively change port 80 to 8080 and configure your server to proxy_pass requests to
+/.well-known to e.g. http://localhost:8080/
+    location /.well-known {
+        proxy_pass http://localhost:8080/;
+    }
+This allows you to only reload instead of stop / start your running web server to avoid downtime.
+
 """.format(n + 4, i['domain'], responses[n]['data']))
 
             stdout = sys.stdout
