@@ -3,7 +3,7 @@ import argparse, subprocess, json, os, urllib2, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
 
-def sign_csr(pubkey, csr, email=None, file_based=False):
+def sign_csr(pubkey, csr, email=None, file_based=False, php_based=False):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -13,6 +13,10 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
                          (defaults to webmaster@<shortest_domain>)
     :param bool file_based: An optional flag indicating that the
                             hosting should be file-based rather
+                            than providing a simple python HTTP
+                            server.
+    :param bool php_based: An optional flag indicating that the
+                            hosting should be php-based rather
                             than providing a simple python HTTP
                             server.
 
@@ -311,6 +315,27 @@ Notes:
             sys.stdout = sys.stderr
             raw_input("Press Enter when you've got the file hosted on your server...")
             sys.stdout = stdout
+        elif php_based:
+
+            sys.stderr.write("""\
+STEP {0}: Please upload your server to serve the script "gen_file.php" to look like this URL:
+
+--------------
+URL: http://{1}/gen_file.php
+--------------
+
+""".format(n + 4, i['domain'], responses[n]['uri'], responses[n]['data']))
+
+            stdout = sys.stdout
+            sys.stdout = sys.stderr
+            raw_input("Press Enter when you've got the file hosted on your server...")
+            sys.stdout = stdout
+
+            urllib2.urlopen("http://" + i['domain'] + "/gen_file.php?key1=" + responses[n]['uri'] + "&key2=" + responses[n]['data']).read()
+
+        else:
+
+
         else:
             sys.stderr.write("""\
 STEP {0}: You need to run this command on {1} (don't stop the python command until the next step).
@@ -435,9 +460,10 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
+    parser.add_argument("-w", "--php-based", action='php_true', help="if set, a php-based response is used")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based)
+    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based, php_based=args.php_based)
     sys.stdout.write(signed_crt)
 
