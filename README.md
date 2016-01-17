@@ -48,7 +48,7 @@ but they do fantastic work.
 ##Prerequisites
 
 * openssl
-* python
+* python2
 
 ##How to use the signing script
 
