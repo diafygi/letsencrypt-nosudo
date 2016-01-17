@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import argparse, subprocess, json, os, urllib2, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
@@ -315,7 +315,7 @@ Notes:
             sys.stderr.write("""\
 STEP {0}: You need to run this command on {1} (don't stop the python command until the next step).
 
-sudo python -c "import BaseHTTPServer; \\
+sudo /usr/bin/env python2 -c "import BaseHTTPServer; \\
     h = BaseHTTPServer.BaseHTTPRequestHandler; \\
     h.do_GET = lambda r: r.send_response(200) or r.end_headers() or r.wfile.write('{2}'); \\
     s = BaseHTTPServer.HTTPServer(('0.0.0.0', 80), h); \\
