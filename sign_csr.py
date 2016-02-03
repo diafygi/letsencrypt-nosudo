@@ -3,7 +3,14 @@ import argparse, subprocess, json, os, urllib2, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
 
-def sign_csr(pubkey, csr, email=None, file_based=False):
+SHOW_COMMANDS = True
+
+def run_cmd(arglist):
+    if SHOW_COMMANDS:
+        sys.stderr.write(" ".join(arglist) + "\n")
+    return subprocess.check_call(arglist)
+
+def sign_csr(pubkey, csr, email=None, file_based=False, cmd_add=None, cmd_rm=None):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -262,6 +269,7 @@ openssl dgst -sha256 -sign user.key -out {3} {4}
             "file_name": test_file_name,
             "sig": test_file_sig,
             "sig_name": test_file_sig_name,
+            "token": challenge['token'],
         })
 
         # challenge response for server
@@ -291,8 +299,15 @@ STEP 3: You need to sign some more files (replace 'user.key' with your user priv
         tests[n]['sig64'] = _b64(tests[n]['sig'].read())
 
     # Step 11: Ask the user to host the token on their server
+    if cmd_add:
+        sys.stderr.write("\nSTEP 4: Adding signatures to server.\n\n")
     for n, i in enumerate(ids):
-        if file_based:
+        if cmd_add:
+            try:
+                run_cmd([cmd_add, i['domain'], tests[n]['token'], responses[n]['data']])
+            except subprocess.CalledProcessError:
+                sys.stderr.write("An error occurred adding signatures to server.  Continuing anyway.\n")
+        elif file_based:
             sys.stderr.write("""\
 STEP {0}: Please update your server to serve the following file at this URL:
 
@@ -397,7 +412,13 @@ sudo python -c "import BaseHTTPServer; \\
     # Step 15: Convert the signed cert from DER to PEM
     sys.stderr.write("Certificate signed!\n")
 
-    if file_based:
+    if cmd_rm:
+        try:
+            for n, i in enumerate(ids):
+                run_cmd([cmd_rm, i['domain'], tests[n]['token']])
+        except subprocess.CalledProcessError:
+            sys.stderr.write("An error occurred removing signatures from server.  Continuing anyway.\n")
+    elif file_based:
         sys.stderr.write("You can remove the acme-challenge file from your webserver now.\n")
     else:
         sys.stderr.write("You can stop running the python command on your server (Ctrl+C works).\n")
@@ -440,9 +461,11 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
+    parser.add_argument("-c", "--cmd-add", default=None, help="if set, 'command domain filename contents' will be called to add the challenge file to the web server")
+    parser.add_argument("-r", "--cmd-rm", default=None, help="if set, 'command domain filename' is called to remove the file from the web server")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based)
+    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based, cmd_add=args.cmd_add, cmd_rm=args.cmd_rm)
     sys.stdout.write(signed_crt)
 
