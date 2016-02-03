@@ -30,6 +30,7 @@ python https server that you can inspect for yourself before you run it.
 * Signing script
     * [How to use the signing script](#how-to-use-the-signing-script)
     * [Example use of the signing script](#example-use-of-the-signing-script)
+    * [Automating the signing commands](#automating-the-signing-commands)
     * [Automating the domain ownership challenge](#automating-the-domain-ownership-challenge)
     * [How to use the signed https certificate](#how-to-use-the-signed-https-certificate)
     * [Demo](#demo)
@@ -268,6 +269,14 @@ ubuntu@letsencrypt.daylightpirates.org:~$ sudo python -c "import BaseHTTPServer;
 KeyboardInterrupt
 ubuntu@letsencrypt.daylightpirates.org:~$
 ```
+
+##Automating the signing commands
+
+If you don't want to manually run the openssl signing commands, you can also
+use the `--private-key` option to provide the location of your user private key
+and `sign_csr.py` will do the signing automatically.  This option was added as
+a user contribution and is not recommended unless you are comfortable that you
+trust this script.
 
 ##Automating the domain ownership challenge
 

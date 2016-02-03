@@ -10,7 +10,7 @@ def run_cmd(arglist):
         sys.stderr.write(" ".join(arglist) + "\n")
     return subprocess.check_call(arglist)
 
-def sign_csr(pubkey, csr, email=None, file_based=False, cmd_add=None, cmd_rm=None):
+def sign_csr(pubkey, privkey, csr, email=None, file_based=False, cmd_add=None, cmd_rm=None):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -167,8 +167,20 @@ def sign_csr(pubkey, csr, email=None, file_based=False, cmd_add=None, cmd_rm=Non
     csr_file_sig = tempfile.NamedTemporaryFile(dir=".", prefix="cert_", suffix=".sig")
     csr_file_sig_name = os.path.basename(csr_file_sig.name)
 
-    # Step 5: Ask the user to sign the registration and requests
-    sys.stderr.write("""\
+    if privkey:
+        # Step 5: Sign the registration and requests
+        try:
+            sys.stderr.write("\nSTEP 2: Signing the registration and requests with '" + privkey + "'.\n\n")
+            run_cmd(["openssl", "dgst", "-sha256", "-sign", privkey, "-out", reg_file_sig_name, reg_file_name])
+            for i in ids:
+                run_cmd(["openssl", "dgst", "-sha256", "-sign", privkey, "-out", i['sig_name'], i['file_name']])
+            run_cmd(["openssl", "dgst", "-sha256", "-sign", privkey, "-out", csr_file_sig_name, csr_file_name])
+        except subprocess.CalledProcessError:
+            sys.stderr.write("An error occurred signing registration and requests.\n")
+            raise
+    else:
+        # Step 5: Ask the user to sign the registration and requests
+        sys.stderr.write("""\
 STEP 2: You need to sign some files (replace 'user.key' with your user private key).
 
 openssl dgst -sha256 -sign user.key -out {0} {1}
@@ -176,14 +188,14 @@ openssl dgst -sha256 -sign user.key -out {0} {1}
 openssl dgst -sha256 -sign user.key -out {3} {4}
 
 """.format(
-    reg_file_sig_name, reg_file_name,
-    "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(i['sig_name'], i['file_name']) for i in ids),
-    csr_file_sig_name, csr_file_name))
+        reg_file_sig_name, reg_file_name,
+        "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(i['sig_name'], i['file_name']) for i in ids),
+        csr_file_sig_name, csr_file_name))
 
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    raw_input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+        stdout = sys.stdout
+        sys.stdout = sys.stderr
+        raw_input("Press Enter when you've run the above commands in a new terminal window...")
+        sys.stdout = stdout
 
     # Step 6: Load the signatures
     reg_file_sig.seek(0)
@@ -278,20 +290,30 @@ openssl dgst -sha256 -sign user.key -out {3} {4}
             "data": keyauthorization,
         })
 
-    # Step 9: Ask the user to sign the challenge responses
-    sys.stderr.write("""\
+    if privkey:
+        # Step 9: Sign the challenge responses
+        try:
+            sys.stderr.write("\nSTEP 3: Signing challenge responses with '" + privkey + "'.\n\n")
+            for i in tests:
+                run_cmd(["openssl", "dgst", "-sha256", "-sign", privkey, "-out", i['sig_name'], i['file_name']])
+        except subprocess.CalledProcessError:
+            sys.stderr.write("An error occurred signing challenge responses.\n")
+            raise
+    else:
+        # Step 9: Ask the user to sign the challenge responses
+        sys.stderr.write("""\
 STEP 3: You need to sign some more files (replace 'user.key' with your user private key).
 
 {0}
 
 """.format(
-    "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(
-        i['sig_name'], i['file_name']) for i in tests)))
+        "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(
+            i['sig_name'], i['file_name']) for i in tests)))
 
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    raw_input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+        stdout = sys.stdout
+        sys.stdout = sys.stderr
+        raw_input("Press Enter when you've run the above commands in a new terminal window...")
+        sys.stdout = stdout
 
     # Step 10: Load the response signatures
     for n, i in enumerate(ids):
@@ -459,6 +481,7 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
 
 """)
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
+    parser.add_argument("-k", "--private-key", required=False, help="path to your account private key, not recommended unless you trust this script")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
     parser.add_argument("-c", "--cmd-add", default=None, help="if set, 'command domain filename contents' will be called to add the challenge file to the web server")
@@ -466,6 +489,6 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based, cmd_add=args.cmd_add, cmd_rm=args.cmd_rm)
+    signed_crt = sign_csr(args.public_key, args.private_key, args.csr_path, email=args.email, file_based=args.file_based, cmd_add=args.cmd_add, cmd_rm=args.cmd_rm)
     sys.stdout.write(signed_crt)
 
