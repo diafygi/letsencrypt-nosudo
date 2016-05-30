@@ -41,9 +41,7 @@ def main():
 @main.command(help='Generate user key pair')
 @click.argument('name')
 def generate_user_key(name):
-    if name.endswith(('.key', '.pub')):
-        name = name[:-4]
-
+    name = _strip_exts(name, ('.key', '.pub'))
     privkey_filename = '{}.key'.format(name)
     pubkey_filename = '{}.pub'.format(name)
 
@@ -71,9 +69,7 @@ def generate_user_key(name):
 @main.command(help='Generate private key for a domain')
 @click.argument('name')
 def generate_domain_key(name):
-    if name.endswith(('.key', '.pub')):
-        name = name[:-4]
-
+    name = _strip_exts(name, ('.key', '.pub'))
     privkey_filename = '{}.key'.format(name)
 
     if os.path.exists(privkey_filename):
@@ -138,16 +134,29 @@ def generate_csr(domain_names, domain_key, base_openssl_config, output):
 @main.command(help='Sign a CSR via letsencrypt')
 @click.option('-k', '--public-key', default='user.pub', metavar='PATH')
 @click.option('-K', '--private-key', default='user.key', metavar='PATH')
-@click.option('--email', default='Contact email', prompt='Contact email')
+@click.option('--email')
 @click.option('--ca-url', default='production',
               help='URL to the CA API, or "production" (default) / "staging"')
 @click.option('-m', '--method',
               type=click.Choice(['file', 'run-manual', 'run-local']))
 @click.option('-p', '--port', default=80, type=int)
+@click.option('-b', '--base-name', metavar='PATH',
+              help='Base name for CSR/CRT/PEM files')
 @click.option('-f', '--input-file', help='Path to the CSR to be signed')
 @click.option('-o', '--output', help='Certificate file name')
-def sign_csr(public_key, private_key, email, ca_url, method, port, input_file,
-             output):
+@click.option('--chained-output', help='Name for the output file')
+def sign_csr(public_key, private_key, email, ca_url, method, port,
+             base_name, input_file, output, chained_output):
+
+    if (not public_key) and private_key:
+        public_key = _replace_ext(private_key, '.pub', ('.key',))
+
+    if (not private_key) and public_key:
+        private_key = _replace_ext(public_key, '.key', ('.pub',))
+
+    if not (private_key and public_key):
+        logger.critical('A user key pair is required!')
+        raise click.Abort()
 
     if ca_url == 'production':
         ca_url = PRODUCTION_CA
@@ -155,14 +164,27 @@ def sign_csr(public_key, private_key, email, ca_url, method, port, input_file,
         ca_url = STAGING_CA
 
     if input_file is None:
-        # TODO guess
-        logger.critical('An input file is required')
-        raise click.Abort()
+        if base_name:
+            input_file = base_name + '.csr'
+        else:
+            logger.critical('An input file is required')
+            raise click.Abort()
 
     if output is None:
-        # TODO generate
-        logger.critical('An output file is required')
-        raise click.Abort()
+        if base_name:
+            output = base_name + '.crt'
+        else:
+            logger.critical('An output file is required')
+            raise click.Abort()
+
+    if chained_output is None:
+        if base_name:
+            chained_output = base_name + '.pem'
+        elif output:
+            chained_output = _replace_ext(output, '.pem', ('.crt',))
+        else:
+            logger.critical('Unable to determine name for PEM certificate')
+            raise click.Abort()
 
     # ------------------------------------------------------------
 
@@ -170,7 +192,12 @@ def sign_csr(public_key, private_key, email, ca_url, method, port, input_file,
     csr_info = _read_csr_file_info(input_file)
 
     if email is None:
-        raise NotImplementedError('TODO generate email from domain')
+        default_email = 'webmaster@example.com'
+        if csr_info.common_name:
+            default_email = 'webmaster@{}'.format(csr_info.common_name)
+        elif len(csr_info.alt_names):
+            default_email = 'webmaster@{}'.format(csr_info.alt_names[0])
+        email = click.prompt('Contact email', default=default_email)
 
     client = LetsencryptClient(ca_url)
 
@@ -417,13 +444,7 @@ def sign_csr(public_key, private_key, email, ca_url, method, port, input_file,
     # ----------------------------------------------------------------------
     # Step 15: Convert the signed cert from DER to PEM
     logger.info("Certificate signed successfully")
-
-    signed_der64 = base64.b64encode(signed_der)
-    signed_pem = (
-        '-----BEGIN CERTIFICATE-----\n'
-        '{}\n'
-        '-----END CERTIFICATE-----\n'
-        .format("\n".join(textwrap.wrap(signed_der64, 64))))
+    signed_pem = _export_certificate(signed_der)
 
     logger.info('Writing signed certificate to %s', output)
     with open(output, 'w') as fp:
@@ -431,22 +452,30 @@ def sign_csr(public_key, private_key, email, ca_url, method, port, input_file,
 
     # ----------------------------------------------------------------------
     # Step 16: generate full PEM w/ chained certs (for NGINX)
-    output_chained = output + '.pem'
-    logger.info('Generating chained certificate %s', output_chained)
-    url = random.choice(CA_CERT_URLS)
-    logger.info('Chaining with %s', url)
+    logger.info('Generating chained certificate %s', chained_output)
+    cert_data = _get_ca_certificate()
 
-    resp = requests.get(url)
-    if not resp.ok:
-        logger.critical('Getting CA certificate %s failed', url)
-        raise click.Abort()
-    cert_data = resp.content
-
-    with open(output_chained, 'w') as fp:
+    with open(chained_output, 'w') as fp:
         fp.write(signed_pem)
-        fp.write('\n')
         fp.write(cert_data)
-    logger.info('Chained certificate written to %s', output_chained)
+    logger.info('Chained certificate written to %s', chained_output)
+
+
+def _strip_exts(path, stripext):
+    name, ext = os.path.splitext(path)
+    if ext in stripext:
+        return name
+    return path
+
+
+def _replace_ext(path, newext, stripext):
+    return _strip_exts(path, stripext) + newext
+
+
+def _ensure_extension(path, ext):
+    if not path.endswith(ext):
+        path += ext
+    return path
 
 
 class SimpleDataStructure(object):
@@ -721,6 +750,28 @@ def _verification_run_local_ctx(idx, domain, path, data, port):
     logger.info('Waiting for server process %s to terminate', proc.pid)
     proc.terminate()
     proc.join()
+
+
+def _export_certificate(signed_der):
+    signed_der64 = base64.b64encode(signed_der)
+    return (
+        '-----BEGIN CERTIFICATE-----\n'
+        '{}\n'
+        '-----END CERTIFICATE-----\n'
+        .format("\n".join(textwrap.wrap(signed_der64, 64))))
+
+
+def _get_ca_certificate():
+    url = random.choice(CA_CERT_URLS)
+    logger.info('Getting CA certificate from %s', url)
+
+    resp = requests.get(url)
+    if not resp.ok:
+        logger.warning('Getting CA certificate from %s failed', url)
+        raise RuntimeError('Getting CA certificate from %s failed' % url)
+
+    cert_data = resp.content
+    return cert_data
 
 
 def setup_logging():
