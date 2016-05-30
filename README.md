@@ -74,6 +74,7 @@ openssl req -new -sha256 -key domain.key -subj "/CN=example.com" > domain.csr
 
 #Alternatively, if you want both example.com and www.example.com
 openssl genrsa 4096 > domain.key
+#The openssl.cnf location may vary; on a Mac, use /System/Library/OpenSSL/openssl.cnf
 openssl req -new -sha256 -key domain.key -subj "/" -reqexts SAN -config <(cat /etc/ssl/openssl.cnf <(printf "[SAN]\nsubjectAltName=DNS:example.com,DNS:www.example.com")) > domain.csr
 ```
 
