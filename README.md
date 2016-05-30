@@ -1,4 +1,174 @@
-#Let's Encrypt Without Sudo
+# Let's Encrypt Without Sudo
+
+## Abourt rshk/letsencrypt-nosudo fork
+
+It all started when I needed to make a few changes to make the
+original
+[diafygi/letsencrypt-nosudo](https://github.com/diafygi/letsencrypt-nosudo)
+project in order to better fit my needs.
+
+The changes ended up being more than I initially thought, and many
+things changed when compared to the origianl project; still the credit
+for most of the verification code goes to the original authors.
+
+### The verification process I use
+
+Since I cannot afford the downtime of bringing the webserver (reverse
+proxy, actually) down each time I need to update the certificates, I
+come up with this solution:
+
+- The reverse proxy is setup to forward all connections on
+  `/.well-known/acme-challenge`, for the selected domains, to a
+  separate "verification" app.
+
+- All the certificate generation / validation is run locally; the HTTP
+  server required for verification is running locally as well;
+  connection is forwarded from the reverse proxy machine through a
+  reverse ssh tunnel.
+
+- Since all the keys are stored locally anyways, the script can just
+  as well sign the certificates automatically (running commands
+  manually might improve slightly on the security PoV (?), but try
+  doing that with dozends of domains...)
+
+- I also need a PEM certificate containing the full chain; the new
+  script takes care of that as well.
+
+
+### Prerequisites
+
+The new script depends on a few extra library you'll need to
+install. The recommended way to do so is to create a virtualenv:
+
+    # Create the virtualenv
+    virtualenv --python /usr/bin/python2.7 .venv
+
+    # Activate it in the current shell
+    source ./.venv/bin/activate
+
+    # Install the requirements
+    pip install -r requirements.txt
+
+
+### Usage example
+
+First of all, you'll need to generate a key pair for your user, if you
+haven't already:
+
+    ./letsencrypt_nosudo.py generate_user_key user.key
+
+..will generate the `user.key` and `user.pub` files.
+
+Then, you're going to need a private key for the domain:
+
+    ./letsencrypt_nosudo.py generate_domain_key example.com
+
+..will generate the `example.com.key` file.
+
+Next, you'll need to generate a Certificate Sigining Request file (CSR):
+
+    ./letsencrypt_nosudo.py generate_csr -d example.com -d www.example.com
+
+Ok, now for the tricky part: getting the certificate signature.
+
+**Prerequisite:** configure the reverse proxy to proxy requests for
+the verification URL. I use a NGINX configuration similar to this:
+
+```nginx
+server {
+    listen      80;
+    server_name example.com;
+    include "/etc/nginx/incl/letsencrypt-8080.conf";
+    location / {
+        return      301 http://www.$server_name$request_uri;
+    }
+}
+
+server {
+    listen   80;
+    server_name www.example.com;
+    include "/etc/nginx/incl/letsencrypt-8080.conf";
+
+    location / {
+        # ... forward to the app upstream ...
+    }
+}
+
+server {
+    listen   443;
+    server_name example.com;
+
+    ssl on;
+    ssl_certificate /etc/ssl/localcerts/example.com.pem;
+    ssl_certificate_key /etc/ssl/localcerts/example.com.key;
+    include "/etc/nginx/incl/ssl-security.conf";
+
+    return      301 https://www.$server_name$request_uri;
+}
+
+server {
+    listen   443;
+    server_name www.example.com;
+
+    ssl on;
+    ssl_certificate /etc/ssl/localcerts/example.com.pem;
+    ssl_certificate_key /etc/ssl/localcerts/example.com.key;
+    include "/etc/nginx/incl/ssl-security.conf";
+
+    location / {
+        # ... forward to the app upstream ...
+    }
+}
+```
+
+Contents of `/etc/nginx/incl/letsencrypt-8080.conf`:
+
+```nginx
+location /.well-known/acme-challenge/ {
+    proxy_pass_header Server;
+    proxy_set_header Host $http_host;
+    proxy_redirect off;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Scheme $scheme;
+    proxy_connect_timeout 10;
+    proxy_read_timeout 10;
+    proxy_pass http://127.0.0.1:8080/;
+}
+```
+
+Contents of `/etc/nginx/incl/ssl-security.conf` (not really required
+for this to work, but provides some good configuration for SSL):
+
+```nginx
+# Some SSL best practices
+
+ssl_protocols TLSv1.2 TLSv1.1 TLSv1;
+ssl_prefer_server_ciphers on;
+ssl_ciphers "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
+
+# Make sure you generate a diffie-hellman params file if you want to use this
+ssl_dhparam /etc/ssl/localcerts/dhparams.pem;
+```
+
+**Prerequisite:** run a reverse SSH tunnel:
+
+    ssh gateway.example.com -R localhost:8080:localhost:8080 -N -v
+
+Run the signing process:
+
+    ./letsencrypt_nosudo.py sign_csr -p 8080 -m run-local -b example.com --ca-url staging
+
+(remove `--ca-url staging` when you're ready to generate real certificates).
+
+If everything is setup correctly, this will output the
+`example.com.crt` and `example.com.pem` files, containing respectively
+the certificate and the certificate chained with the CA certificate
+(you'll want to use the second one when configuring nginx).
+
+
+-----
+
+# Original README below
 
 The [Let's Encrypt](https://letsencrypt.org/) initiative is a fantastic program
 that offers **free** https certificates! However, the one catch is that you need
@@ -420,5 +590,3 @@ clear what it's doing.
 
 For example, it currently can't do any ACME challenges besides 'http-01'. Maybe
 someone could do a pull request to add more challenge compatibility?
-
-
