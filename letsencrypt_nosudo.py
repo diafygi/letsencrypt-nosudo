@@ -26,10 +26,10 @@ STAGING_CA = "https://acme-staging.api.letsencrypt.org"
 PRODUCTION_CA = "https://acme-v01.api.letsencrypt.org"
 TERMS = "https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
 CA_CERT_URLS = [
-    'https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem',
-    'https://letsencrypt.org/certs/lets-encrypt-x2-cross-signed.pem',
+    # 'https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem',
+    # 'https://letsencrypt.org/certs/lets-encrypt-x2-cross-signed.pem',
     'https://letsencrypt.org/certs/lets-encrypt-x3-cross-signed.pem',
-    'https://letsencrypt.org/certs/lets-encrypt-x4-cross-signed.pem',
+    # 'https://letsencrypt.org/certs/lets-encrypt-x4-cross-signed.pem',
 ]
 
 
