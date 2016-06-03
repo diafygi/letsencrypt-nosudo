@@ -19,9 +19,14 @@ to stdout.
 This script doesn't know or ask for your private key, and it doesn't need to be
 run on your server. There are some parts of the ACME protocol that require your
 private key and access to your server. For those parts, this script prints out
-very minimal commands for you to run to complete the requirements. There is only
-one command that needs to be run as root on your server and it is a very simple
-python https server that you can inspect for yourself before you run it.
+very minimal commands for you to run to complete the requirements. 
+
+For the final verification stage, a file needs to be retrieved from your webserver.
+If you have root access, there is one command that needs to be run as root on your 
+server and it is a very simple python https server that you can inspect for yourself 
+before you run it.  Alternatively, if you don't have root (eg most webhosts), you
+can use the '--file-based' option to generate a file to be retrieved from your
+existing webserver.
 
 ##Table of Contents
 
@@ -31,6 +36,7 @@ python https server that you can inspect for yourself before you run it.
     * [How to use the signing script](#how-to-use-the-signing-script)
     * [Example use of the signing script](#example-use-of-the-signing-script)
     * [How to use the signed https certificate](#how-to-use-the-signed-https-certificate)
+    * [How to renew the certificate](#how-to-renew-the-certificate)
     * [Demo](#demo)
 * Revocation script
     * [How to use the revocation script](#how-to-use-the-revocation-script)
@@ -106,7 +112,7 @@ because this script does not have access to your private keys.
 ###Help text
 ```
 user@hostname:~$ python sign_csr.py --help
-usage: sign_csr.py [-h] -p PUBLIC_KEY [-e EMAIL] csr_path
+usage: sign_csr.py [-h] -p PUBLIC_KEY [-e EMAIL] [-f] csr_path
 
 Get a SSL certificate signed by a Let's Encrypt (ACME) certificate authority and
 output that signed certificate. You do NOT need to run this script on your
@@ -302,6 +308,20 @@ server {
     }
 }
 ```
+
+##How to renew the certificate
+
+Let's Encrypt certificates (currently) are valid for 3 months so fairly soon
+after getting your initial certificates setup you'll be back here to renew them.
+The good news is that the process is very similar, except that you don't need to
+repeat all the steps.  Follow the same steps starting from:
+
+```sh
+python sign_csr.py --public-key user.pub domain.csr > signed.crt
+```
+
+Using your renewed certificate is just the same but note that the intermediate 
+certificates may have changed, so pull a fresh copy from [https://letsencrypt.org/certificates/](https://letsencrypt.org/certificates/)
 
 ##Demo
 
