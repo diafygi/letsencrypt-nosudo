@@ -1,6 +1,7 @@
 import os,sys
 import subprocess as s
 call = s.check_call
+import shutil
 
 def make_csr(out,domain,key,*prefixes):
 	if len(prefixes) == 0:
