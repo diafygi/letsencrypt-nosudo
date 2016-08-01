@@ -3,19 +3,43 @@ import argparse, subprocess, json, os, urllib.request, urllib.error, urllib.pars
     hashlib, tempfile, re, copy, textwrap
 
 def B(o):
-	if hasattr(o,'encode'):
-		return o.encode('utf-8')
-	return o
+  if hasattr(o,'encode'):
+    return o.encode('utf-8')
+  return o
 
-def commands(intro,*commands):
-	commands = flatten(commands)
-	if 'execute' in os.environ:
-		for command in commands:
-			s.check_call(command)
+
+def flatten_object(o):
+	"""Given a list, possibly nested to any level, return it flattened."""
+	if isinstance(o,(str,bytes,bytearray,memoryview)):
+		yield o
+	elif isinstance(o,list):
+		# lists are special cases (don't descend)
+		yield o
 	else:
-		print("\n"+intro+"\n")
-		for command in commands:
-			print(" ".join(command))
+		try:
+			it = iter(o)
+			# empty lists should just conk out
+			first = next(it)
+			yield from flatten_object(first)
+			for sub in it:
+				yield from flatten_object(sub)
+		except StopIteration:
+			pass
+		except TypeError as e:
+			yield o
+
+def flatten(*lis):
+	return flatten_object(lis)
+			
+def commands(intro,*commands):
+  commands = flatten(commands)
+  if 'execute' in os.environ:
+    for command in commands:
+      s.check_call(command)
+  else:
+    print("\n"+intro+"\n")
+    for command in commands:
+      print(" ".join(command))
     stdout = sys.stdout
     sys.stdout = sys.stderr
     input("Press Enter when you've run the above commands in a new terminal window...")

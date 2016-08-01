@@ -1,13 +1,18 @@
 import os,sys
+
+if not 'domain' in os.environ:
+	raise SystemExit("domain=foo.bar.com python make.py www smtp derp")
+
+domain = os.environ['domain']
+out = os.environ.get("out","/etc/letsencrypt/")
+prefixes = sys.argv[1:]
+
 mkdir = os.mkdir
 exists = os.path.exists
 J = os.path.join
 
-import subprocess as s
-call = s.check_call
-
-if not 'domain' in os.environ:
-	raise SystemExit("domain=foo.bar.com python make.py www smtp derp")
+import subprocess
+call = subprocess.check_call
 
 def need_update(target,*deps):
 	def deco(handle):
@@ -35,10 +40,6 @@ def need_update(target,*deps):
 			raise
 	return deco
 U = need_update
-
-domain = os.environ['domain']
-out = os.environ.get("out","")
-prefixes = sys.argv[1:]
 
 def check_location(loc):
 	if not exists(loc):
