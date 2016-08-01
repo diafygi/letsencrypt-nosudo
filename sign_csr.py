@@ -3,7 +3,7 @@ import argparse, subprocess, json, os, urllib2, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
 
-def sign_csr(pubkey, csr, email=None, file_based=False):
+def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -20,8 +20,10 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
     :rtype: string
 
     """
-    #CA = "https://acme-staging.api.letsencrypt.org"
-    CA = "https://acme-v01.api.letsencrypt.org"
+    if 'debug' in os.environ:
+      CA = "https://acme-staging.api.letsencrypt.org"
+    else:
+      CA = os.environ.get("CA","https://acme-v01.api.letsencrypt.org")
     TERMS = "https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
     nonce_req = urllib2.Request("{0}/directory".format(CA))
     nonce_req.get_method = lambda : 'HEAD'
@@ -162,16 +164,17 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
 
     # Step 5: Ask the user to sign the registration and requests
     sys.stderr.write("""\
-STEP 2: You need to sign some files (replace 'user.key' with your user private key).
+STEP 2: You need to sign some files (replace '{5}' with your user private key).
 
-openssl dgst -sha256 -sign user.key -out {0} {1}
+openssl dgst -sha256 -sign {5} -out {0} {1}
 {2}
-openssl dgst -sha256 -sign user.key -out {3} {4}
+openssl dgst -sha256 -sign {5} -out {3} {4}
 
 """.format(
     reg_file_sig_name, reg_file_name,
-    "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(i['sig_name'], i['file_name']) for i in ids),
-    csr_file_sig_name, csr_file_name))
+    "\n".join("openssl dgst -sha256 -sign {2} -out {0} {1}".format(i['sig_name'], i['file_name'], privkey) for i in ids),
+    csr_file_sig_name, csr_file_name,
+    privkey))
 
     stdout = sys.stdout
     sys.stdout = sys.stderr
@@ -272,13 +275,13 @@ openssl dgst -sha256 -sign user.key -out {3} {4}
 
     # Step 9: Ask the user to sign the challenge responses
     sys.stderr.write("""\
-STEP 3: You need to sign some more files (replace 'user.key' with your user private key).
+STEP 3: You need to sign some more files (replace '{3}' with your user private key).
 
 {0}
 
 """.format(
-    "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(
-        i['sig_name'], i['file_name']) for i in tests)))
+    "\n".join("openssl dgst -sha256 -sign {3} -out {0} {1}".format(
+        i['sig_name'], i['file_name'], privkey) for i in tests)))
 
     stdout = sys.stdout
     sys.stdout = sys.stderr
@@ -441,8 +444,11 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
     parser.add_argument("csr_path", help="path to your certificate signing request")
+    parser.add_argument("private-key", default=None, help="path to your account private key")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based)
+    if args.private_key is None:
+        args.private_key = args.public_key.replace(".pub",".key")
+    signed_crt = sign_csr(args.public_key, args.csr_path, privkey=args.private_key, email=args.email, file_based=args.file_based)
     sys.stdout.write(signed_crt)
 
