@@ -2,6 +2,10 @@
 import argparse, subprocess, json, os, urllib.request, urllib.error, urllib.parse, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
+def B(o):
+	if hasattr(o,'encode'):
+		return o.encode('utf-8')
+	return o
 
 def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
     """Use the ACME protocol to get an ssl certificate signed by a
@@ -30,7 +34,7 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
 
     def _b64(b):
         "Shortcut function to go from bytes to jwt base64 string"
-        return base64.urlsafe_b64encode(b).replace("=", "")
+        return base64.urlsafe_b64encode(B(b)).decode().replace("=", "")
 
     # Step 1: Get account public key
     sys.stderr.write("Reading pubkey file...\n")
@@ -41,7 +45,7 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
         raise IOError("Error loading {0}".format(pubkey))
     pub_hex, pub_exp = re.search(
         "Modulus(?: \((?:2048|4096) bit\)|)\:\s+00:([a-f0-9\:\s]+?)Exponent\: ([0-9]+)",
-        out, re.MULTILINE|re.DOTALL).groups()
+        out.decode('utf-8'), re.MULTILINE|re.DOTALL).groups()
     pub_mod = binascii.unhexlify(re.sub("(\s|:)", "", pub_hex))
     pub_mod64 = _b64(pub_mod)
     pub_exp = int(pub_exp)
@@ -57,7 +61,7 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
             "n": pub_mod64,
         },
     }
-    accountkey_json = json.dumps(header['jwk'], sort_keys=True, separators=(',', ':'))
+    accountkey_json = json.dumps(header['jwk'], sort_keys=True, separators=(',', ':')).encode('utf-8')
     thumbprint = _b64(hashlib.sha256(accountkey_json).digest())
     sys.stderr.write("Found public key!\n")
 
@@ -68,6 +72,7 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
     out, err = proc.communicate()
     if proc.returncode != 0:
         raise IOError("Error loading {0}".format(csr))
+    out = out.decode()
     domains = set([])
     common_name = re.search("Subject:.*? CN=([^\s,;/]+)", out)
     if common_name is not None:
@@ -102,7 +107,8 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
     reg_protected.update({"nonce": reg_nonce})
     reg_protected64 = _b64(json.dumps(reg_protected, sort_keys=True, indent=4))
     reg_file = tempfile.NamedTemporaryFile(dir=".", prefix="register_", suffix=".json")
-    reg_file.write("{0}.{1}".format(reg_protected64, reg_b64))
+    reg_file.write("{0}.{1}".format(reg_protected64, reg_b64)
+                   .encode('utf-8'))
     reg_file.flush()
     reg_file_name = os.path.basename(reg_file.name)
     reg_file_sig = tempfile.NamedTemporaryFile(dir=".", prefix="register_", suffix=".sig")
@@ -125,7 +131,9 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
         id_protected.update({"nonce": id_nonce})
         id_protected64 = _b64(json.dumps(id_protected, sort_keys=True, indent=4))
         id_file = tempfile.NamedTemporaryFile(dir=".", prefix="domain_", suffix=".json")
-        id_file.write("{0}.{1}".format(id_protected64, id_b64))
+        id_file.write("{0}.{1}"
+                      .format(id_protected64, id_b64)
+                      .encode('utf-8'))
         id_file.flush()
         id_file_name = os.path.basename(id_file.name)
         id_file_sig = tempfile.NamedTemporaryFile(dir=".", prefix="domain_", suffix=".sig")
@@ -156,7 +164,9 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
     csr_protected.update({"nonce": csr_nonce})
     csr_protected64 = _b64(json.dumps(csr_protected, sort_keys=True, indent=4))
     csr_file = tempfile.NamedTemporaryFile(dir=".", prefix="cert_", suffix=".json")
-    csr_file.write("{0}.{1}".format(csr_protected64, csr_b64))
+    csr_file.write("{0}.{1}"
+                   .format(csr_protected64, csr_b64)
+                   .encode('utf-8'))
     csr_file.flush()
     csr_file_name = os.path.basename(csr_file.name)
     csr_file_sig = tempfile.NamedTemporaryFile(dir=".", prefix="cert_", suffix=".sig")
@@ -198,7 +208,7 @@ openssl dgst -sha256 -sign {5} -out {3} {4}
     }, sort_keys=True, indent=4)
     reg_url = "{0}/acme/new-reg".format(CA)
     try:
-        resp = urllib.request.urlopen(reg_url, reg_data)
+        resp = urllib.request.urlopen(reg_url, reg_data.encode('utf-8'))
         result = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         err = e.read()

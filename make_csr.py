@@ -2,28 +2,28 @@ import os,sys
 import subprocess as s
 call = s.check_call
 import shutil
+import tempfile
 
-def make_csr(out,domain,key,*prefixes):
+def make_csr(csr,domain,key,*prefixes):
 	if len(prefixes) == 0:
 		return call(["openssl","openssl",
 		      "req","-new", "-sha256", "-key", key,
-		      "-subj", "/CN="+domain])
+		      "-subj", "/CN="+domain,"-out",csr])
 	domains = [domain]
 	for prefix in prefixes:
 		domains.append(prefix+"."+domain)
 	domains = ("DNS:"+domain for domain in domains)
 	domains = ",".join(domains)
-	req = s.Popen(["openssl",
-	               "req", "-new", "-sha256","-key", key, "-subj", "/",
-	               "-reqexts", "SAN", "-config", "fd:0"],stdin=s.PIPE)
-	
-	with open("/etc/ssl/openssl.cnf","rb") as inp:
-		shutil.copyfileobj(inp,req.stdin)
-	req.stdin.write(("""
+	with tempfile.NamedTemporaryFile() as out:
+		with open("/etc/ssl/openssl.cnf","rb") as inp:
+			shutil.copyfileobj(inp,out)
+		out.write(("""
 [SAN]
 subjectAltName="""+domains).encode('utf-8'))
-
-	return req.wait()
+		out.flush()
+		call(["openssl",
+		      "req", "-new", "-sha256","-key", key, "-subj", "/",
+		      "-reqexts", "SAN", "-config", out.name,"-out",csr])
 
 if __name__ == '__main__':
 	key,domain = sys.argv[1:3]

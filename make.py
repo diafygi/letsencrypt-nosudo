@@ -20,14 +20,19 @@ def need_update(target,*deps):
 					break
 			else:
 				return
+		else:
+			test = None
 		# need rebuild
 		try:
 			return handle()
 		except:
 			# don't leave targets around if they've been touched
 			# and we errored out!
-			if exists(target) and os.stat(target).st_mtime != test:
+			if (exists(target) and 
+			    (test is None or
+			     os.stat(target).st_mtime != test)):
 				os.unlink(target)
+			raise
 	return deco
 U = need_update
 
@@ -57,6 +62,7 @@ def check_cert(loc):
 	cert = J(loc,"cert")
 	@U(csr,key)
 	def _():
+		print('make CSR')
 		from make_csr import make_csr
 		make_csr(csr, domain, key, *prefixes)
 	@U(cert,csr)
