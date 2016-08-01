@@ -6,7 +6,7 @@ import tempfile
 
 def make_csr(csr,domain,key,*prefixes):
 	if len(prefixes) == 0:
-		return call(["openssl","openssl",
+		return call(["openssl",
 		      "req","-new", "-sha256", "-key", key,
 		      "-subj", "/CN="+domain,"-out",csr])
 	domains = [domain]

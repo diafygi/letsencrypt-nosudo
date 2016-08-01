@@ -7,6 +7,20 @@ def B(o):
 		return o.encode('utf-8')
 	return o
 
+def commands(intro,*commands):
+	commands = flatten(commands)
+	if 'execute' in os.environ:
+		for command in commands:
+			s.check_call(command)
+	else:
+		print("\n"+intro+"\n")
+		for command in commands:
+			print(" ".join(command))
+    stdout = sys.stdout
+    sys.stdout = sys.stderr
+    input("Press Enter when you've run the above commands in a new terminal window...")
+    sys.stdout = stdout
+
 def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
@@ -171,23 +185,14 @@ def sign_csr(pubkey, csr, privkey="user.key", email=None, file_based=False):
     csr_file_sig_name = os.path.basename(csr_file_sig.name)
 
     # Step 5: Ask the user to sign the registration and requests
-    sys.stderr.write("""\
-STEP 2: You need to sign some files (replace '{5}' with your user private key).
-
-openssl dgst -sha256 -sign {5} -out {0} {1}
-{2}
-openssl dgst -sha256 -sign {5} -out {3} {4}
-
-""".format(
-    reg_file_sig_name, reg_file_name,
-    "\n".join("openssl dgst -sha256 -sign {2} -out {0} {1}".format(i['sig_name'], i['file_name'], privkey) for i in ids),
-    csr_file_sig_name, csr_file_name,
-    privkey))
-
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+    
+    commands("STEP 2: You need to sign some files (replace '{5}' with your user private key).",
+             ["openssl", "dgst", "-sha256", "-sign", privkey, "-out",
+              reg_file_sig_name, reg_file_name],
+             (["openssl","dgst", "-sha256", "-sign", privkey, "-out", i['sig_name'], i['file_name']]
+              for i in ids),
+            ["openssl", "dgst", "-sha256", "-sign", privkey, "-out",
+             csr_file_sig_name, csr_file_name])
 
     # Step 6: Load the signatures
     reg_file_sig.seek(0)
@@ -283,19 +288,11 @@ openssl dgst -sha256 -sign {5} -out {3} {4}
         })
 
     # Step 9: Ask the user to sign the challenge responses
-    sys.stderr.write("""\
-STEP 3: You need to sign some more files (replace '{3}' with your user private key).
-
-{0}
-
-""".format(
-    "\n".join("openssl dgst -sha256 -sign {3} -out {0} {1}".format(
-        i['sig_name'], i['file_name'], privkey) for i in tests)))
-
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+    commands("STEP 3: You need to sign some more files (replace "+
+             repr(privkey)+" with your user private key).",
+             (["openssl", "dgst", "-sha256",
+               "-sign", privkey, "-out", i['sig_name'], i['file_name']]
+              for i in tests))
 
     # Step 10: Load the response signatures
     for n, i in enumerate(ids):
@@ -315,7 +312,7 @@ File contents: \"{3}\"
 
 Notes:
 - Do not include the quotes in the file.
-- The file should be one line without any spaces.
+- The file should be one line without any spaces and no trailing newline.
 
 """.format(n + 4, i['domain'], responses[n]['uri'], responses[n]['data']))
 
@@ -325,7 +322,7 @@ Notes:
             sys.stdout = stdout
         else:
             sys.stderr.write("""\
-STEP {0}: You need to run this command on {1} (don't stop the python command until the next step).
+STEP {0}: You need to run this command as root on {1} (don't stop the python command until the next step).
 
 sudo python -c "import BaseHTTPServer; \\
     h = BaseHTTPServer.BaseHTTPRequestHandler; \\
@@ -415,9 +412,9 @@ sudo python -c "import BaseHTTPServer; \\
         sys.stderr.write("You can stop running the python command on your server (Ctrl+C works).\n")
 
     signed_der64 = base64.b64encode(signed_der)
-    return = """\
+    return """
 -----BEGIN CERTIFICATE-----
-"""+"\n".join(textwrap.wrap(signed_der64, 64)))+"""
+""" + "\n".join(textwrap.wrap(signed_der64, 64)) + """
 -----END CERTIFICATE-----
 """
 
