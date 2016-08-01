@@ -444,7 +444,7 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
     parser.add_argument("csr_path", help="path to your certificate signing request")
-    parser.add_argument("private-key", default=None, help="path to your account private key")
+    parser.add_argument("--private-key", default=None, help="path to your account private key")
 
     args = parser.parse_args()
     if args.private_key is None:
