@@ -1,0 +1,8 @@
+#!/bin/bash
+
+domain="$1"
+filename="$2"
+
+if [ "$filename" ]; then
+    exec /usr/bin/ssh -o 'StrictHostKeyChecking no' "$domain" /usr/bin/sudo /bin/rm /var/www/acme/"$filename"
+fi
