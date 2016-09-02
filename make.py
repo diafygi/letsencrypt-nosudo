@@ -90,7 +90,7 @@ def check_cert(loc):
 			out.write(sign_csr(pubkey=user("pub"),
 			                   csr=csr,
 			                   privkey=user("key"),
-			                   email=info['email'],
+			                   email=info['email']+'@'+domain,
 			                   file_based="run_server" not in os.environ,
 			                   debug='debug' in os.environ))
 
