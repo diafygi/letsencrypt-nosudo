@@ -45,7 +45,7 @@ def commands(intro,*commands):
 		input("Press Enter when you've run the above commands in a new terminal window...")
 		sys.stdout = stdout
 
-def sign_csr(pubkey, csr, email, privkey="user.key", file_based=True):
+def sign_csr(pubkey, csr, email, privkey="user.key", file_based=True, debug=False):
 		"""Use the ACME protocol to get an ssl certificate signed by a
 		certificate authority.
 
@@ -62,7 +62,7 @@ def sign_csr(pubkey, csr, email, privkey="user.key", file_based=True):
 		:rtype: string
 
 		"""
-		if 'debug' in os.environ:
+		if debug:
 			CA = "https://acme-staging.api.letsencrypt.org"
 		else:
 			CA = os.environ.get("CA","https://acme-v01.api.letsencrypt.org")
@@ -474,3 +474,6 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
 		signed_crt = sign_csr(args.public_key, args.csr_path, privkey=args.private_key, email=args.email, file_based=args.file_based)
 		sys.stdout.write(signed_crt)
 
+
+import sys
+sys.modules[__NAME__] = sign_csr

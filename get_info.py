@@ -26,15 +26,14 @@ class UI:
 		self.top.show_all()
 		Gtk.main()
 		return self.info
+	def hide(self):
+		ui.top.hide()
+		Gtk.main_quit()
 
 ui = UI()
 # email, domain, prefixes, done
 ui.top.connect('delete-event',ui.hide)
 ui.done.connect('clicked',ui.commit)
-ui.top.show_all()
-Gtk.main()
-return ui.info
-		
-	
-except ImportError:
-	raise
+
+import sys
+sys.modules[__NAME__] = ui.get_info

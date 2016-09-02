@@ -1,12 +1,13 @@
 #!/bin/env python3
 import os,sys
 
+# also 'debug' in os.environ
+
 if not 'domain' in os.environ:
-	raise SystemExit("domain=foo.bar.com python make.py www smtp derp")
+	raise SystemExit("domain=foo.bar.com python make.py")
 
 domain = os.environ['domain']
 out = os.environ.get("out","/etc/letsencrypt/")
-prefixes = sys.argv[1:]
 
 mkdir = os.mkdir
 exists = os.path.exists
@@ -34,7 +35,7 @@ def need_update(target,*deps):
 		except:
 			# don't leave targets around if they've been touched
 			# and we errored out!
-			if (exists(target) and 
+			if (exists(target) and
 			    (test is None or
 			     os.stat(target).st_mtime != test)):
 				os.unlink(target)
@@ -67,27 +68,29 @@ def check_cert(loc):
 	try:
 		with open(info) as inp:
 			info = json.load(inp)
+		if 'edit' in os.environ:
+			info = get_info(domain, info)
 	except (IOError,json.JSONDecodeError):
 		# Ask user for info
-		from info import get_info
-		derp = get_info(domain);		
+		import get_info
+		derp = get_info(domain,{})
 		with open(info,"wt") as out:
 			info = derp
 			json.dump(info,out)
-
+			
 	@U(csr,key)
 	def _():
 		print('make CSR')
 		from make_csr import make_csr
-		make_csr(csr, domain, key, *prefixes)
+		make_csr(csr, domain, key, *info['prefixes'])
 	@U(cert,csr)
 	def _():
 		with open(cert,'wt') as out:
-			from sign_csr import sign_csr
+			import sign_csr
 			out.write(sign_csr(pubkey=user("pub"),
 			                csr=csr,
 			                privkey=user("key"),
-			                email=email,
+			                email=info['email'],
 			                file_based="run_server" not in os.environ))
 
 check_location("user")
