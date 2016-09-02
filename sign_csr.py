@@ -66,7 +66,7 @@ def sign_csr(pubkey, csr, email, privkey="user.key", file_based=True, debug=Fals
 			CA = "https://acme-staging.api.letsencrypt.org"
 		else:
 			CA = os.environ.get("CA","https://acme-v01.api.letsencrypt.org")
-		TERMS = "https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+		TERMS = "https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 		nonce_req = urllib.request.Request(CA+"/directory")
 		nonce_req.get_method = lambda : 'HEAD'
 
