@@ -13,10 +13,11 @@ class UI:
 		prefixes = set()
 		for prefix, in self.prefixes:
 			prefixes.add(prefix)
-		self.info['prefixes'] = prefixes
+		self.info['prefixes'] = tuple(prefixes)
 		self.info['email'] = self.email.get_text()
 		Gtk.main_quit()
 	def get_info(self,domain, info):
+		self.info = info
 		self.domain.set_text(domain)
 		if 'prefixes' in info:
 			for prefix in info['prefixes']:
@@ -26,7 +27,7 @@ class UI:
 		self.top.show_all()
 		Gtk.main()
 		return self.info
-	def hide(self):
+	def hide(self,*a):
 		ui.top.hide()
 		Gtk.main_quit()
 
@@ -36,4 +37,4 @@ ui.top.connect('delete-event',ui.hide)
 ui.done.connect('clicked',ui.commit)
 
 import sys
-sys.modules[__NAME__] = ui.get_info
+sys.modules[__name__] = ui.get_info

@@ -33,7 +33,7 @@ def flatten(*lis):
 			
 def commands(intro,*commands):
 	commands = flatten(commands)
-	if 'execute' in os.environ:
+	if 'ask' not in os.environ:
 		for command in commands:
 			subprocess.check_call(command)
 	else:
@@ -426,7 +426,8 @@ sudo python -c "import BaseHTTPServer; \\
 		else:
 				sys.stderr.write("You can stop running the python command on your server (Ctrl+C works).\n")
 
-		signed_der64 = base64.b64encode(signed_der)
+		signed_der64 = base64.b64encode(signed_der).decode()
+		
 		return """
 -----BEGIN CERTIFICATE-----
 """ + "\n".join(textwrap.wrap(signed_der64, 64)) + """
@@ -476,4 +477,4 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
 
 
 import sys
-sys.modules[__NAME__] = sign_csr
+sys.modules[__name__] = sign_csr

@@ -1,8 +1,6 @@
 #!/bin/env python3
 import os,sys
 
-# also 'debug' in os.environ
-
 if not 'domain' in os.environ:
 	raise SystemExit("domain=foo.bar.com python make.py")
 
@@ -31,7 +29,9 @@ def need_update(target,*deps):
 			test = None
 		# need rebuild
 		try:
-			return handle()
+			temp = target+".temp"
+			ret = handle(temp)
+			os.rename(temp,target)
 		except:
 			# don't leave targets around if they've been touched
 			# and we errored out!
@@ -52,7 +52,7 @@ def check_location(loc):
 	if not exists(key):
 		call(["openssl","genrsa","-out",key,"4096"])
 	@U(pub,key)
-	def _():
+	def _(pub):
 		call(["openssl","rsa", "-in", key,"-pubout","-out",pub])
 	return key,pub
 
@@ -70,28 +70,29 @@ def check_cert(loc):
 			info = json.load(inp)
 		if 'edit' in os.environ:
 			info = get_info(domain, info)
-	except (IOError,json.JSONDecodeError):
+	except (FileNotFoundError,json.JSONDecodeError):
 		# Ask user for info
 		import get_info
-		derp = get_info(domain,{})
+		derp = get_info(domain,{'email': 'webmaster'})
 		with open(info,"wt") as out:
 			info = derp
 			json.dump(info,out)
 			
 	@U(csr,key)
-	def _():
+	def _(csr):
 		print('make CSR')
 		from make_csr import make_csr
 		make_csr(csr, domain, key, *info['prefixes'])
 	@U(cert,csr)
-	def _():
+	def _(cert):
 		with open(cert,'wt') as out:
 			import sign_csr
 			out.write(sign_csr(pubkey=user("pub"),
-			                csr=csr,
-			                privkey=user("key"),
-			                email=info['email'],
-			                file_based="run_server" not in os.environ))
+			                   csr=csr,
+			                   privkey=user("key"),
+			                   email=info['email'],
+			                   file_based="run_server" not in os.environ,
+			                   debug='debug' in os.environ))
 
 check_location("user")
 
