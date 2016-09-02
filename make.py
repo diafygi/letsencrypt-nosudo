@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/pybin/env python3
 import os,sys
 
 if not 'domain' in os.environ:
@@ -70,7 +70,7 @@ def check_cert(loc):
 			info = json.load(inp)
 		if 'edit' in os.environ:
 			info = get_info(domain, info)
-	except (FileNotFoundError,json.JSONDecodeError):
+	except (FileNotFoundError,TypeError,ValueError):
 		# Ask user for info
 		import get_info
 		derp = get_info(domain,{'email': 'webmaster'})
