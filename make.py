@@ -1,3 +1,4 @@
+#!/bin/env python3
 import os,sys
 
 if not 'domain' in os.environ:
@@ -61,6 +62,21 @@ def check_cert(loc):
 	key,pub = check_location(loc)
 	csr = J(loc,"csr")
 	cert = J(loc,"cert")
+	import json
+	info = J(loc,"info.json")
+	try:
+		with open(info) as inp:
+			info = json.load(inp)
+	except IOError:
+		# Ask user for contact email
+		default_email = "webmaster@"+domain
+		input_email = input("STEP 1: What is your contact email? ("+default_email+") ")
+		with open(info,"wt") as out:
+			info = {
+				'email': input_email if input_email else default_email
+			}
+			json.dump(info,out)
+		
 	@U(csr,key)
 	def _():
 		print('make CSR')
@@ -73,8 +89,8 @@ def check_cert(loc):
 			out.write(sign_csr(pubkey=user("pub"),
 			                csr=csr,
 			                privkey=user("key"),
-			                email="email" in os.environ,
-			                file_based="file_based" in os.environ))
+			                email=email,
+			                file_based="run_server" not in os.environ))
 
 check_location("user")
 
