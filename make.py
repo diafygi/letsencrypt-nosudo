@@ -67,16 +67,14 @@ def check_cert(loc):
 	try:
 		with open(info) as inp:
 			info = json.load(inp)
-	except IOError:
-		# Ask user for contact email
-		default_email = "webmaster@"+domain
-		input_email = input("STEP 1: What is your contact email? ("+default_email+") ")
+	except (IOError,json.JSONDecodeError):
+		# Ask user for info
+		from info import get_info
+		derp = get_info(domain);		
 		with open(info,"wt") as out:
-			info = {
-				'email': input_email if input_email else default_email
-			}
+			info = derp
 			json.dump(info,out)
-		
+
 	@U(csr,key)
 	def _():
 		print('make CSR')
