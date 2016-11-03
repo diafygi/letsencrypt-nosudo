@@ -38,7 +38,7 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
     if proc.returncode != 0:
         raise IOError("Error loading {0}".format(pubkey))
     pub_hex, pub_exp = re.search(
-        "Modulus(?: \((?:2048|4096) bit\)|)\:\s+00:([a-f0-9\:\s]+?)Exponent\: ([0-9]+)",
+        "Modulus(?: \((?:[0-9]+) bit\)|)\:\s+([a-f0-9\:\s]+?)Exponent\: ([0-9]+)",
         out, re.MULTILINE|re.DOTALL).groups()
     pub_mod = binascii.unhexlify(re.sub("(\s|:)", "", pub_hex))
     pub_mod64 = _b64(pub_mod)
