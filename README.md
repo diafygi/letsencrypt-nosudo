@@ -30,6 +30,8 @@ python https server that you can inspect for yourself before you run it.
 * Signing script
     * [How to use the signing script](#how-to-use-the-signing-script)
     * [Example use of the signing script](#example-use-of-the-signing-script)
+    * [Automating the signing commands](#automating-the-signing-commands)
+    * [Automating the domain ownership challenge](#automating-the-domain-ownership-challenge)
     * [How to use the signed https certificate](#how-to-use-the-signed-https-certificate)
     * [Demo](#demo)
 * Revocation script
@@ -266,6 +268,43 @@ ubuntu@letsencrypt.daylightpirates.org:~$ sudo python -c "import BaseHTTPServer;
     return func(*args)
 KeyboardInterrupt
 ubuntu@letsencrypt.daylightpirates.org:~$
+```
+
+##Automating the signing commands
+
+If you don't want to manually run the openssl signing commands, you can also
+use the `--private-key` option to provide the location of your user private key
+and `sign_csr.py` will do the signing automatically.  This option was added as
+a user contribution and is not recommended unless you are comfortable that you
+trust this script.
+
+##Automating the domain ownership challenge
+
+If you don't want to manually add the challenge files to your webserver, you
+can also set up a command to run when `sign_csr.py` wants to add a file to your
+web server.  Example scripts are included.  First, you'll need to set up a
+directory on the web server (e.g. /var/www/acme).  You can use something like
+the following to achieve that:
+```
+ProxyPass /.well-known/acme-challenge/ !
+SetEnvIf Request_URI ^/.well-known/acme-challenge/ no-jk
+Alias /.well-known/acme-challenge/ /var/www/acme/
+<Directory "/var/www/acme">
+  Require all granted
+</Directory>
+...
+<VirtualHost *:80>
+...
+  <IfModule mod_rewrite.c>
+    RewriteRule ^/.well-known/acme-challenge/ - [L]
+  </IfModule>
+...
+</VirtualHost>
+```
+
+Then just run sign_csr.py with the `--cmd-add` and `--cmd-rm` options:
+```
+user@hostname:~$ python sign_csr.py --public-key user.pub --cmd-add ./acme_add --cmd-rm ./acme_rm domain.csr > signed.crt
 ```
 
 ##How to use the signed https certificate
