@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import argparse, subprocess, json, os, urllib2, sys, base64, binascii, copy, \
     tempfile, re
 
@@ -121,11 +121,11 @@ NOTE: YOUR PUBLIC KEY NEEDS TO BE THE SAME KEY USED TO ISSUE THE CERTIFICATE.
 
 Prerequisites:
 * openssl
-* python
+* python2
 
 Example:
 --------------
-$ python revoke_crt.py --public-key user.pub domain.crt
+$ /usr/bin/env python2 revoke_crt.py --public-key user.pub domain.crt
 --------------
 
 """)

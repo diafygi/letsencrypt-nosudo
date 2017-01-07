@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import argparse, subprocess, json, os, urllib2, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
@@ -315,7 +315,7 @@ Notes:
             sys.stderr.write("""\
 STEP {0}: You need to run this command on {1} (don't stop the python command until the next step).
 
-sudo python -c "import BaseHTTPServer; \\
+sudo /usr/bin/env python2 -c "import BaseHTTPServer; \\
     h = BaseHTTPServer.BaseHTTPRequestHandler; \\
     h.do_GET = lambda r: r.send_response(200) or r.end_headers() or r.wfile.write('{2}'); \\
     s = BaseHTTPServer.HTTPServer(('0.0.0.0', 80), h); \\
@@ -425,7 +425,7 @@ NOTE: YOUR ACCOUNT KEY NEEDS TO BE DIFFERENT FROM YOUR DOMAIN KEY.
 
 Prerequisites:
 * openssl
-* python
+* python2
 
 Example: Generate an account keypair, a domain key and csr, and have the domain csr signed.
 --------------
@@ -433,7 +433,7 @@ $ openssl genrsa 4096 > user.key
 $ openssl rsa -in user.key -pubout > user.pub
 $ openssl genrsa 4096 > domain.key
 $ openssl req -new -sha256 -key domain.key -subj "/CN=example.com" > domain.csr
-$ python sign_csr.py --public-key user.pub domain.csr > signed.crt
+$ /usr/bin/env python2 sign_csr.py --public-key user.pub domain.csr > signed.crt
 --------------
 
 """)
