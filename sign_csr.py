@@ -51,7 +51,7 @@ def request_verification_and_wait_for_pass(domain_name, header, test):
         else:
             raise KeyError("'{0}' challenge did not pass: {1}".format(domain_name, challenge_status))
 
-def sign_csr(pubkey, csr, email=None, file_based=False):
+def sign_csr(pubkey, csr, email=None, file_based=False, group_domains=False):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -63,6 +63,9 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
                             hosting should be file-based rather
                             than providing a simple python HTTP
                             server.
+    :param bool group_domains: An optional flag indicating that the hosting will be done
+                               on a single server and the responses should be grouped for
+                               all subdomains.
 
     :returns: Signed Certificate (PEM format)
     :rtype: string
@@ -330,9 +333,59 @@ STEP 3: You need to sign some more files (replace 'user.key' with your user priv
         tests[n]['sig64'] = _b64(tests[n]['sig'].read())
 
     # Step 11: Ask the user to host the token on their server
-    for n, i in enumerate(ids):
+    if group_domains:
         if file_based:
+
+            tokens = ''
+            for n, i in enumerate(ids):
+                tokens += """\
+--------------
+URL: http://{0}/{1}
+File contents: \"{2}\"
+""".format(i['domain'], responses[n]['uri'], responses[n]['data'])
+
             sys.stderr.write("""\
+STEP 4: Please update your server to serve the following file(s) at the
+specified URLs:
+{0}\
+--------------
+
+Notes:
+- Do not include the quotes in the file.
+- The file should be one line without any spaces.
+""".format(tokens))
+
+            input_on_stderr("Press Enter when you've got the file hosted on your server...")
+        else:
+            tokens = ''
+            for n, i in enumerate(ids):
+                tokens += """\
+        '{0}' : '{1}', \\
+""".format('/' + responses[n]['uri'], responses[n]['data'])
+
+            sys.stderr.write("""\
+STEP 4: You need to run this command on the domains (don't stop the python command until the next step).
+
+sudo python -c "import BaseHTTPServer; \\
+    h = BaseHTTPServer.BaseHTTPRequestHandler; \\
+    h.do_GET = lambda r: r.send_response(200) or r.end_headers() or r.wfile.write({{ \\
+{0}\
+        }}[r.path]); \\
+    s = BaseHTTPServer.HTTPServer(('0.0.0.0', 80), h); \\
+    s.serve_forever()"
+
+""".format(tokens))
+            input_on_stderr("Press Enter when you've got the python command running on your server...")
+
+        for n, i in enumerate(ids):
+            # Step 12: Let the CA know you're ready for the challenge and wait for
+            # CA to mark test as valid
+            request_verification_and_wait_for_pass(i['domain'], header, tests[n])
+
+    else:
+        for n, i in enumerate(ids):
+            if file_based:
+                sys.stderr.write("""\
 STEP {0}: Please update your server to serve the following file at this URL:
 
 --------------
@@ -341,14 +394,14 @@ File contents: \"{3}\"
 --------------
 
 Notes:
-- Do not include the quotes in the file.
-- The file should be one line without any spaces.
+- Do not include the quotes in the file(s).
+- The file(s) should be one line without any spaces.
 
 """.format(n + 4, i['domain'], responses[n]['uri'], responses[n]['data']))
 
-            input_on_stderr("Press Enter when you've got the file hosted on your server...")
-        else:
-            sys.stderr.write("""\
+                input_on_stderr("Press Enter when you've got the file hosted on your server...")
+            else:
+                sys.stderr.write("""\
 STEP {0}: You need to run this command on {1} (don't stop the python command until the next step).
 
 sudo python -c "import BaseHTTPServer; \\
@@ -359,14 +412,14 @@ sudo python -c "import BaseHTTPServer; \\
 
 """.format(n + 4, i['domain'], responses[n]['data']))
 
-            input_on_stderr("Press Enter when you've got the python command running on your server...")
-        # Step 12: Let the CA know you're ready for the challenge and wait for
-        # CA to mark test as valid
-        request_verification_and_wait_for_pass(i['domain'], header, tests[n])
+                input_on_stderr("Press Enter when you've got the python command running on your server...")
+
+            # Step 12: Let the CA know you're ready for the challenge and wait for
+            # CA to mark test as valid
+            request_verification_and_wait_for_pass(i['domain'], header, tests[n])
 
 
-
-    # Step 14: Get the certificate signed
+    # Step 13: Get the certificate signed
     sys.stderr.write("Requesting signature...\n")
     csr_file_sig.seek(0)
     csr_sig64 = _b64(csr_file_sig.read())
@@ -389,7 +442,7 @@ sudo python -c "import BaseHTTPServer; \\
         sys.stderr.write("\n")
         raise
 
-    # Step 15: Convert the signed cert from DER to PEM
+    # Step 14: Convert the signed cert from DER to PEM
     sys.stderr.write("Certificate signed!\n")
 
     if file_based:
@@ -435,9 +488,12 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
     parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
+    parser.add_argument("-g", "--group-domains", action='store_true',
+                        help="if set, will group all responses for each domain into a single command")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based)
+    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based,
+                          group_domains=args.group_domains)
     sys.stdout.write(signed_crt)
 
