@@ -2,6 +2,12 @@
 import argparse, subprocess, json, os, urllib2, sys, base64, binascii, time, \
     hashlib, tempfile, re, copy, textwrap
 
+def input_on_stderr(msg):
+    stdout = sys.stdout
+    sys.stdout = sys.stderr
+    result = raw_input(msg)
+    sys.stdout = stdout
+    return result
 
 def sign_csr(pubkey, csr, email=None, file_based=False):
     """Use the ACME protocol to get an ssl certificate signed by a
@@ -80,11 +86,8 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
     # Step 3: Ask user for contact email
     if not email:
         default_email = "webmaster@{0}".format(min(domains, key=len))
-        stdout = sys.stdout
-        sys.stdout = sys.stderr
-        input_email = raw_input("STEP 1: What is your contact email? ({0}) ".format(default_email))
+        input_email = input_on_stderr("STEP 1: What is your contact email? ({0}) ".format(default_email))
         email = input_email if input_email else default_email
-        sys.stdout = stdout
 
     # Step 4: Generate the payloads that need to be signed
     # registration
@@ -173,10 +176,7 @@ openssl dgst -sha256 -sign user.key -out {3} {4}
     "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(i['sig_name'], i['file_name']) for i in ids),
     csr_file_sig_name, csr_file_name))
 
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    raw_input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+    input_on_stderr("Press Enter when you've run the above commands in a new terminal window...")
 
     # Step 6: Load the signatures
     reg_file_sig.seek(0)
@@ -280,10 +280,7 @@ STEP 3: You need to sign some more files (replace 'user.key' with your user priv
     "\n".join("openssl dgst -sha256 -sign user.key -out {0} {1}".format(
         i['sig_name'], i['file_name']) for i in tests)))
 
-    stdout = sys.stdout
-    sys.stdout = sys.stderr
-    raw_input("Press Enter when you've run the above commands in a new terminal window...")
-    sys.stdout = stdout
+    input_on_stderr("Press Enter when you've run the above commands in a new terminal window...")
 
     # Step 10: Load the response signatures
     for n, i in enumerate(ids):
@@ -307,10 +304,7 @@ Notes:
 
 """.format(n + 4, i['domain'], responses[n]['uri'], responses[n]['data']))
 
-            stdout = sys.stdout
-            sys.stdout = sys.stderr
-            raw_input("Press Enter when you've got the file hosted on your server...")
-            sys.stdout = stdout
+            input_on_stderr("Press Enter when you've got the file hosted on your server...")
         else:
             sys.stderr.write("""\
 STEP {0}: You need to run this command on {1} (don't stop the python command until the next step).
@@ -323,10 +317,7 @@ sudo python -c "import BaseHTTPServer; \\
 
 """.format(n + 4, i['domain'], responses[n]['data']))
 
-            stdout = sys.stdout
-            sys.stdout = sys.stderr
-            raw_input("Press Enter when you've got the python command running on your server...")
-            sys.stdout = stdout
+            input_on_stderr("Press Enter when you've got the python command running on your server...")
 
         # Step 12: Let the CA know you're ready for the challenge
         sys.stderr.write("Requesting verification for {0}...\n".format(i['domain']))
