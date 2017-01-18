@@ -9,6 +9,48 @@ def input_on_stderr(msg):
     sys.stdout = stdout
     return result
 
+def request_verification_and_wait_for_pass(domain_name, header, test):
+    sys.stderr.write("Requesting verification for {0}...\n".format(domain_name))
+    test_data = json.dumps({
+        "header": header,
+        "protected": test['protected64'],
+        "payload": test['data64'],
+        "signature": test['sig64'],
+    }, sort_keys=True, indent=4)
+    test_url = test['uri']
+    try:
+        resp = urllib2.urlopen(test_url, test_data)
+        test_result = json.loads(resp.read())
+    except urllib2.HTTPError as e:
+        sys.stderr.write("Error: test_data:\n")
+        sys.stderr.write("POST {0}\n".format(test_url))
+        sys.stderr.write(test_data)
+        sys.stderr.write("\n")
+        sys.stderr.write(e.read())
+        sys.stderr.write("\n")
+        raise
+
+    sys.stderr.write("Waiting for {0} challenge to pass...\n".format(domain_name))
+    while True:
+        try:
+            resp = urllib2.urlopen(test_url)
+            challenge_status = json.loads(resp.read())
+        except urllib2.HTTPError as e:
+            sys.stderr.write("Error: test_data:\n")
+            sys.stderr.write("GET {0}\n".format(test_url))
+            sys.stderr.write(test_data)
+            sys.stderr.write("\n")
+            sys.stderr.write(e.read())
+            sys.stderr.write("\n")
+            raise
+        if challenge_status['status'] == "pending":
+            time.sleep(2)
+        elif challenge_status['status'] == "valid":
+            sys.stderr.write("Passed {0} challenge!\n".format(domain_name))
+            break
+        else:
+            raise KeyError("'{0}' challenge did not pass: {1}".format(domain_name, challenge_status))
+
 def sign_csr(pubkey, csr, email=None, file_based=False):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
@@ -318,49 +360,11 @@ sudo python -c "import BaseHTTPServer; \\
 """.format(n + 4, i['domain'], responses[n]['data']))
 
             input_on_stderr("Press Enter when you've got the python command running on your server...")
+        # Step 12: Let the CA know you're ready for the challenge and wait for
+        # CA to mark test as valid
+        request_verification_and_wait_for_pass(i['domain'], header, tests[n])
 
-        # Step 12: Let the CA know you're ready for the challenge
-        sys.stderr.write("Requesting verification for {0}...\n".format(i['domain']))
-        test_data = json.dumps({
-            "header": header,
-            "protected": tests[n]['protected64'],
-            "payload": tests[n]['data64'],
-            "signature": tests[n]['sig64'],
-        }, sort_keys=True, indent=4)
-        test_url = tests[n]['uri']
-        try:
-            resp = urllib2.urlopen(test_url, test_data)
-            test_result = json.loads(resp.read())
-        except urllib2.HTTPError as e:
-            sys.stderr.write("Error: test_data:\n")
-            sys.stderr.write("POST {0}\n".format(test_url))
-            sys.stderr.write(test_data)
-            sys.stderr.write("\n")
-            sys.stderr.write(e.read())
-            sys.stderr.write("\n")
-            raise
 
-        # Step 13: Wait for CA to mark test as valid
-        sys.stderr.write("Waiting for {0} challenge to pass...\n".format(i['domain']))
-        while True:
-            try:
-                resp = urllib2.urlopen(test_url)
-                challenge_status = json.loads(resp.read())
-            except urllib2.HTTPError as e:
-                sys.stderr.write("Error: test_data:\n")
-                sys.stderr.write("GET {0}\n".format(test_url))
-                sys.stderr.write(test_data)
-                sys.stderr.write("\n")
-                sys.stderr.write(e.read())
-                sys.stderr.write("\n")
-                raise
-            if challenge_status['status'] == "pending":
-                time.sleep(2)
-            elif challenge_status['status'] == "valid":
-                sys.stderr.write("Passed {0} challenge!\n".format(i['domain']))
-                break
-            else:
-                raise KeyError("'{0}' challenge did not pass: {1}".format(i['domain'], challenge_status))
 
     # Step 14: Get the certificate signed
     sys.stderr.write("Requesting signature...\n")
