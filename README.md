@@ -303,6 +303,23 @@ server {
 }
 ```
 
+Below is a similar configuration example for Apache Web Server. Make sure `mod_ssl` is enabled:
+
+```apache
+<VirtualHost *:443>
+    ServerName letsencrypt.daylightpirates.org
+    DocumentRoot /path/to/webroot
+
+    SSLEngine on
+    SSLCertificateFile /etc/apache2/ssl/signed.crt
+    SSLCertificateKeyFile /etc/apache2/ssl/domain.key
+    SSLCACertificateFile /etc/apache2/ssl/lets-encrypt-x3-cross-signed.pem
+    SSLProtocol TLSv1 TLSv1.1 TLSv1.2
+    SSLCipherSuite ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA
+    SSLHonorCipherOrder on
+</VirtualHost>
+```
+
 ## Demo
 
 Here's a website that is using a certificate signed using `sign_csr.py`:
