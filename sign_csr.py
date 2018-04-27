@@ -7,7 +7,7 @@ except ImportError:
     from urllib2 import urlopen # Python 2
 
 
-def sign_csr(pubkey, csr, email=None, file_based=False):
+def sign_csr(pubkey, csr, mode, email=None):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -33,6 +33,13 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
     def _b64(b):
         "Shortcut function to go from bytes to jwt base64 string"
         return base64.urlsafe_b64encode(b).replace("=", "")
+
+    modes_mapping = {
+        'http-standalone': 'http-01',
+        'http-file': 'http-01',
+        'tls': 'tls-sni-01',
+    }
+    challenge_type = modes_mapping[mode]
 
     # Step 1: Get account public key
     sys.stderr.write("Reading pubkey file...\n")
@@ -218,6 +225,7 @@ openssl dgst -sha256 -sign user.key -out {3} {4}
     # Step 8: Request challenges for each domain
     responses = []
     tests = []
+    sans = []
     for n, i in enumerate(ids):
         sys.stderr.write("Requesting challenges for {0}...\n".format(i['domain']))
         id_data = json.dumps({
@@ -238,8 +246,9 @@ openssl dgst -sha256 -sign user.key -out {3} {4}
             sys.stderr.write(e.read())
             sys.stderr.write("\n")
             raise
-        challenge = [c for c in result['challenges'] if c['type'] == "http-01"][0]
+        challenge = [c for c in result['challenges'] if c['type'] == challenge_type][0]
         keyauthorization = "{0}.{1}".format(challenge['token'], thumbprint)
+        sans.append(hashlib.sha256(keyauthorization).hexdigest())
 
         # challenge request
         sys.stderr.write("Building challenge responses for {0}...\n".format(i['domain']))
@@ -296,8 +305,8 @@ STEP 3: You need to sign some more files (replace 'user.key' with your user priv
 
     # Step 11: Ask the user to host the token on their server
     for n, i in enumerate(ids):
-        if file_based:
-            sys.stderr.write("""\
+        if mode == "http-file":
+            instructions = """\
 STEP {0}: Please update your server to serve the following file at this URL:
 
 --------------
@@ -309,14 +318,10 @@ Notes:
 - Do not include the quotes in the file.
 - The file should be one line without any spaces.
 
-""".format(n + 4, i['domain'], responses[n]['uri'], responses[n]['data']))
-
-            stdout = sys.stdout
-            sys.stdout = sys.stderr
-            raw_input("Press Enter when you've got the file hosted on your server...")
-            sys.stdout = stdout
-        else:
-            sys.stderr.write("""\
+""".format(n + 4, i['domain'], responses[n]['uri'], responses[n]['data'])
+            wait_message = "Press Enter when you've got the file hosted on your server..."
+        elif mode == "http-standalone":
+            instructions = """\
 STEP {0}: You need to run this command on {1} (don't stop the python command until the next step).
 
 sudo python -c "import BaseHTTPServer; \\
@@ -325,12 +330,28 @@ sudo python -c "import BaseHTTPServer; \\
     s = BaseHTTPServer.HTTPServer(('0.0.0.0', 80), h); \\
     s.serve_forever()"
 
-""".format(n + 4, i['domain'], responses[n]['data']))
+""".format(n + 4, i['domain'], responses[n]['data'])
+            wait_message = "Press Enter when you've got the python command running on your server..."
+        elif mode == "tls":
+            instructions = """\
+STEP {0}: Generate a self-signed cert on your server using the following command
 
-            stdout = sys.stdout
-            sys.stdout = sys.stderr
-            raw_input("Press Enter when you've got the python command running on your server...")
-            sys.stdout = stdout
+openssl req -x509 -sha256 -newkey rsa:2048 -keyout ephemeral-{1}.key -nodes -out ephemeral-{1}.cer -days 365 \
+-subj "/CN={1}" -reqexts SAN -extensions SAN \
+-config <(cat /etc/ssl/openssl.cnf <(printf "[SAN]\\nsubjectAltName=DNS:{2}.{3}.acme.invalid"))
+
+Then configure your web server to use the generated files
+ephemeral-{1}.key and ephemeral-{1}.cer
+as private key and certificate for its HTTPS listener.
+
+""".format(n + 4, i['domain'], sans[n][0:32], sans[n][32:64])
+            wait_message = "Press Enter when you've got the cert configured on your server..."
+
+        sys.stderr.write(instructions)
+        stdout = sys.stdout
+        sys.stdout = sys.stderr
+        raw_input(wait_message)
+        sys.stdout = stdout
 
         # Step 12: Let the CA know you're ready for the challenge
         sys.stderr.write("Requesting verification for {0}...\n".format(i['domain']))
@@ -401,10 +422,13 @@ sudo python -c "import BaseHTTPServer; \\
     # Step 15: Convert the signed cert from DER to PEM
     sys.stderr.write("Certificate signed!\n")
 
-    if file_based:
-        sys.stderr.write("You can remove the acme-challenge file from your webserver now.\n")
-    else:
-        sys.stderr.write("You can stop running the python command on your server (Ctrl+C works).\n")
+    if mode == "http-file":
+        end_message = "You can remove the acme-challenge file from your webserver now."
+    elif mode == "http-standalone":
+        end_message = "You can stop running the python command on your server (Ctrl+C works)."
+    elif mode == 'tls':
+        end_message = "You can remove the ephemeral certs from your webserver configuration now."
+    sys.stderr.write(end_message+"\n")
 
     signed_der64 = base64.b64encode(signed_der)
     signed_pem = """\
@@ -443,10 +467,11 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
 """)
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
-    parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
+    parser.add_argument("-m", "--mode", choices=['http-standalone', 'http-file', 'tls'], default='http-standalone',
+                        help="operation mode, default is http-standalone")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based)
+    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, mode=args.mode)
     sys.stdout.write(signed_crt)
 
