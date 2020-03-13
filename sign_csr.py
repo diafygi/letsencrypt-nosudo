@@ -7,7 +7,7 @@ except ImportError:
     from urllib2 import urlopen # Python 2
 
 
-def sign_csr(pubkey, csr, email=None, file_based=False):
+def sign_csr(pubkey, csr, email=None, file_based=False, port_number=80):
     """Use the ACME protocol to get an ssl certificate signed by a
     certificate authority.
 
@@ -19,6 +19,13 @@ def sign_csr(pubkey, csr, email=None, file_based=False):
                             hosting should be file-based rather
                             than providing a simple python HTTP
                             server.
+    :param int port_number: The port-number to which traffic recieved
+                            on default port 80 is subsequently routed
+                            for processing e.g. 8080. Not relevant if
+                            file-based approach is being used.
+                            (defaults to 80, indicating no extra
+                            routing to other ports occurs after
+                            packets are received on port 80)
 
     :returns: Signed Certificate (PEM format)
     :rtype: string
@@ -322,10 +329,10 @@ STEP {0}: You need to run this command on {1} (don't stop the python command unt
 sudo python -c "import BaseHTTPServer; \\
     h = BaseHTTPServer.BaseHTTPRequestHandler; \\
     h.do_GET = lambda r: r.send_response(200) or r.end_headers() or r.wfile.write('{2}'); \\
-    s = BaseHTTPServer.HTTPServer(('0.0.0.0', 80), h); \\
+    s = BaseHTTPServer.HTTPServer(('0.0.0.0', {3}), h); \\
     s.serve_forever()"
 
-""".format(n + 4, i['domain'], responses[n]['data']))
+""".format(n + 4, i['domain'], responses[n]['data'], port_number))
 
             stdout = sys.stdout
             sys.stdout = sys.stderr
@@ -443,10 +450,12 @@ $ python sign_csr.py --public-key user.pub domain.csr > signed.crt
 """)
     parser.add_argument("-p", "--public-key", required=True, help="path to your account public key")
     parser.add_argument("-e", "--email", default=None, help="contact email, default is webmaster@<shortest_domain>")
-    parser.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-f", "--file-based", action='store_true', help="if set, a file-based response is used")
+    group.add_argument("-n", "--port-number", default=80, type=int, help="port-number to listen for challenges on")
     parser.add_argument("csr_path", help="path to your certificate signing request")
 
     args = parser.parse_args()
-    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based)
+    signed_crt = sign_csr(args.public_key, args.csr_path, email=args.email, file_based=args.file_based, port_number=args.port_number)
     sys.stdout.write(signed_crt)
 

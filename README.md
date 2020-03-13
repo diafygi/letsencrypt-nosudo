@@ -139,6 +139,8 @@ optional arguments:
   -e EMAIL, --email EMAIL
                         contact email, default is webmaster@<shortest_domain>
   -f, --file-based      if set, a file-based response is used
+  -n PORT_NUMBER, --port-number PORT_NUMBER
+                        port-number to listen for challenges on
 user@hostname:~$
 ```
 
